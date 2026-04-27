@@ -1,0 +1,23 @@
+{
+  "name": "@swa/uof-sdk",
+  "version": "1.0.0",
+  "description": "SWA Unified Odds Feed client SDK — connects to SWA UOF Server via AMQP and consumes live MMA odds",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "files": [
+    "dist/**/*"
+  ]
+}
