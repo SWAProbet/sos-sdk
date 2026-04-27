@@ -10,6 +10,9 @@ import {
   BetSettlementEvent,
   BetStopEvent,
   AliveEvent,
+  FixtureChangeEvent,
+  SnapshotCompleteEvent,
+  BetCancelEvent,
 } from './types';
 
 const DEFAULT_BINDING_PATTERNS = [
@@ -158,6 +161,16 @@ export class SwaUofClient extends EventEmitter {
           break;
         case 'bet_stop':
           this.emit('betStop', parsed as BetStopEvent);
+          break;
+        case 'fixture_change':
+          this.emit('fixtureChange', parsed as FixtureChangeEvent);
+          break;
+        case 'snapshot_complete':
+          this.recoveryManager.onAlive(parsed as any);
+          this.emit('snapshotComplete', parsed as SnapshotCompleteEvent);
+          break;
+        case 'bet_cancel':
+          this.emit('betCancel', parsed as BetCancelEvent);
           break;
         case 'alive':
           this.recoveryManager.onAlive(parsed as AliveEvent);
