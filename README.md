@@ -43,7 +43,7 @@ client.on('betStop', (event) => {
 });
 
 client.on('alive', (event) => {
-  // Heartbeat — SDK handles recovery automatically
+  // Heartbeat: SDK handles recovery automatically
 });
 
 client.on('recoveryStarted', ({ estimatedMessages }) => {
@@ -78,10 +78,10 @@ new SwaUofClient(config: SwaUofClientConfig)
 
 #### Methods
 
-- `connect()` — connect to the feed
-- `disconnect()` — disconnect
-- `getMarketDescriptions()` — fetch market definitions from the API
-- `getFixtures(date?)` — fetch scheduled events
+- `connect()`: connect to the feed
+- `disconnect()`: disconnect
+- `getMarketDescriptions()`: fetch market definitions from the API
+- `getFixtures(date?)`: fetch scheduled events
 
 #### Events
 

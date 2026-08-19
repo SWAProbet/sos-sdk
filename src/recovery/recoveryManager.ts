@@ -25,7 +25,7 @@ export class RecoveryManager extends EventEmitter {
     this.monitorTimer = setInterval(() => {
       const elapsed = Date.now() - this.lastAliveAt;
       if (elapsed > this.aliveTimeoutMs && !this.isRecovering && this.autoRecover) {
-        console.warn(`[SwaUofSDK:Recovery] No alive for ${elapsed}ms — triggering recovery`);
+        console.warn(`[SwaUofSDK:Recovery] No alive for ${elapsed}ms, triggering recovery`);
         this.triggerRecovery();
       }
     }, 5000);
@@ -46,7 +46,7 @@ export class RecoveryManager extends EventEmitter {
   }
 
   /**
-   * Called on reconnect — requests recovery from the server.
+   * Called on reconnect: requests recovery from the server.
    */
   async onReconnect(): Promise<void> {
     if (!this.autoRecover) return;
