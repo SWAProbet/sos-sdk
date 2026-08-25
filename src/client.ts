@@ -5,6 +5,7 @@ import { RecoveryManager } from './recovery/recoveryManager';
 import { parseUofXml, detectMessageType } from './xml/parser';
 import {
   SwaUofClientConfig,
+  SwaUofSport,
   SwaUofEventMap,
   OddsChangeEvent,
   BetSettlementEvent,
@@ -12,10 +13,12 @@ import {
   AliveEvent,
 } from './types';
 
-const DEFAULT_BINDING_PATTERNS = [
-  'mma.live.#',
-  'system.live.alive.#',
-];
+const DEFAULT_SPORT: SwaUofSport = 'mma';
+
+// One feed carries one sport, so bind only that sport plus the shared alive stream.
+function defaultBindingPatterns(sport: SwaUofSport): string[] {
+  return [`${sport}.live.#`, 'system.live.alive.#'];
+}
 
 export class SwaUofClient extends EventEmitter {
   private amqpConnection: AmqpConnection;
@@ -30,7 +33,9 @@ export class SwaUofClient extends EventEmitter {
       accessToken: userConfig.accessToken,
       amqpHost: userConfig.amqpHost,
       apiHost: userConfig.apiHost,
-      bindingPatterns: userConfig.bindingPatterns || DEFAULT_BINDING_PATTERNS,
+      sport: userConfig.sport ?? DEFAULT_SPORT,
+      bindingPatterns:
+        userConfig.bindingPatterns || defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),
       aliveTimeoutMs: userConfig.aliveTimeoutMs ?? 30000,
       autoRecover: userConfig.autoRecover ?? true,
     };
@@ -98,7 +103,7 @@ export class SwaUofClient extends EventEmitter {
   async getFixtures(date?: string): Promise<any> {
     const params = date ? `?date=${date}` : '';
     const response = await fetch(
-      `${this.config.apiHost}/uof-api/v1/sports/mma/events/json${params}`,
+      `${this.config.apiHost}/uof-api/v1/sports/${this.config.sport}/events/json${params}`,
       { headers: { 'X-API-Key': this.config.accessToken } },
     );
     return response.json();

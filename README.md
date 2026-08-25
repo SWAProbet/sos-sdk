@@ -1,6 +1,8 @@
 # @swa/uof-sdk
 
-TypeScript client SDK for connecting to the SWA Unified Odds Feed. Consumes live MMA odds via AMQP (RabbitMQ) with automatic recovery and XML deserialization.
+TypeScript client SDK for connecting to the SWA Unified Odds Feed. Consumes live odds via AMQP (RabbitMQ) with automatic recovery and XML deserialization.
+
+Set `sport` to match the feed you are connecting to (tennis | tabletennis | volleyball | mma, default mma). It scopes the queue bindings to `{sport}.live.#` and points the fixtures lookup at `/v1/sports/{sport}/events`.
 
 ## Installation
 
@@ -15,6 +17,7 @@ import { SwaUofClient } from '@swa/uof-sdk';
 
 const client = new SwaUofClient({
   accessToken: 'your-api-key',
+  sport: 'tennis',
   amqpHost: 'amqp://feed.swa.com',
   apiHost: 'https://feed-api.swa.com',
 });

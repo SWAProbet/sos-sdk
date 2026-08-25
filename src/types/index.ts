@@ -73,11 +73,15 @@ export interface AliveEvent {
   subscribed: boolean;
 }
 
+export type SwaUofSport = 'tennis' | 'tabletennis' | 'volleyball' | 'mma';
+
 export interface SwaUofClientConfig {
   accessToken: string;
   amqpHost: string;
   apiHost: string;
-  /** Binding patterns for the AMQP queue. Defaults to all MMA + alive. */
+  /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
+  sport?: SwaUofSport;
+  /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
   bindingPatterns?: string[];
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
   aliveTimeoutMs?: number;
