@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { AliveEvent } from '../types';
+import { UofApiClient } from '../http/apiClient';
 
 export class RecoveryManager extends EventEmitter {
   private lastAliveAt: number = Date.now();
@@ -7,8 +8,7 @@ export class RecoveryManager extends EventEmitter {
   private isRecovering = false;
 
   constructor(
-    private apiHost: string,
-    private accessToken: string,
+    private api: UofApiClient,
     private aliveTimeoutMs: number,
     private autoRecover: boolean,
   ) {
@@ -25,7 +25,7 @@ export class RecoveryManager extends EventEmitter {
     this.monitorTimer = setInterval(() => {
       const elapsed = Date.now() - this.lastAliveAt;
       if (elapsed > this.aliveTimeoutMs && !this.isRecovering && this.autoRecover) {
-        console.warn(`[SwaUofSDK:Recovery] No alive for ${elapsed}ms — triggering recovery`);
+        console.warn(`[SwaUofSDK:Recovery] No alive for ${elapsed}ms, triggering recovery`);
         this.triggerRecovery();
       }
     }, 5000);
@@ -46,7 +46,7 @@ export class RecoveryManager extends EventEmitter {
   }
 
   /**
-   * Called on reconnect — requests recovery from the server.
+   * Called on reconnect: requests recovery from the server.
    */
   async onReconnect(): Promise<void> {
     if (!this.autoRecover) return;
@@ -59,21 +59,11 @@ export class RecoveryManager extends EventEmitter {
 
     try {
       const after = new Date(this.lastAliveAt).toISOString();
-      const url = `${this.apiHost}/uof-api/recovery/1/initiate_request?after=${encodeURIComponent(after)}`;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': this.accessToken,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Recovery request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json() as { requestId: string; estimatedMessages: number };
+      const result = await this.api.post<{ requestId: string; estimatedMessages: number }>(
+        'recovery/1/initiate_request',
+        { after },
+      );
       this.emit('recoveryStarted', { estimatedMessages: result.estimatedMessages });
 
       // Poll for completion
@@ -92,14 +82,10 @@ export class RecoveryManager extends EventEmitter {
       await new Promise(r => setTimeout(r, 2000));
 
       try {
-        const url = `${this.apiHost}/uof-api/recovery/1/status?request_id=${encodeURIComponent(requestId)}`;
-        const response = await fetch(url, {
-          headers: { 'X-API-Key': this.accessToken },
+        const status = await this.api.getJson<{ status: string }>('recovery/1/status', {
+          request_id: requestId,
         });
 
-        if (!response.ok) continue;
-
-        const status = await response.json() as { status: string };
         if (status.status === 'completed') {
           this.emit('recoveryCompleted');
           return;

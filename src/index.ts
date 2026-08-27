@@ -1,5 +1,12 @@
 export { SwaUofClient } from './client';
-export { parseUofXml, detectMessageType } from './xml/parser';
+export { UofApiClient } from './http/apiClient';
+export {
+  parseUofXml,
+  detectMessageType,
+  parseFixtures,
+  parseProbabilities,
+  parseEventSummary,
+} from './xml/parser';
 export {
   OddsChangeEvent,
   BetSettlementEvent,
@@ -16,4 +23,14 @@ export {
   SettlementMarket,
   SettlementOutcome,
   SportEventStatus,
+  Fixture,
+  FixtureQuery,
+  FixtureStatus,
+  FixtureCard,
+  FixtureCompetitor,
+  SportUrn,
+  Probabilities,
+  EventSummary,
+  EventRecoveryKind,
+  RecoveryRequestAccepted,
 } from './types';

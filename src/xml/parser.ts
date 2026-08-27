@@ -12,6 +12,11 @@ import {
   Outcome,
   SettlementMarket,
   SettlementOutcome,
+  Fixture,
+  FixtureStatus,
+  Probabilities,
+  EventSummary,
+  SportUrn,
 } from '../types';
 
 const xmlParser = new XMLParser({
@@ -19,7 +24,8 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: '@_',
   allowBooleanAttributes: true,
   parseAttributeValue: true,
-  isArray: (tagName) => ['market', 'outcome', 'competitor', 'result'].includes(tagName),
+  isArray: (tagName) =>
+    ['market', 'outcome', 'competitor', 'result', 'sport_event', 'reference_id'].includes(tagName),
 });
 
 export type ParsedUofMessage =
@@ -200,4 +206,132 @@ export function detectMessageType(xml: string): string | null {
   if (xml.includes('<bet_cancel')) return 'bet_cancel';
   if (xml.includes('<alive')) return 'alive';
   return null;
+}
+
+/**
+ *  * Parses the <fixtures> list the /v1/sports/<sport>/events endpoint returns.
+ */
+export function parseFixtures(xml: string): Fixture[] {
+  const root = xmlParser.parse(xml)?.fixtures;
+  if (!root) return [];
+  return asArray(root.sport_event).map(parseSportEvent);
+}
+
+/**
+ * Parses the <probabilities_response> the odds query endpoints return.
+ */
+export function parseProbabilities(xml: string): Probabilities | null {
+  const root = xmlParser.parse(xml)?.probabilities_response;
+  if (!root) return null;
+
+  return {
+    eventId: String(root['@_event_id'] ?? ''),
+    productId: Number(root['@_product'] ?? 0),
+    timestamp: Number(root['@_timestamp'] ?? 0),
+    generatedAt: String(root['@_generated_at'] ?? ''),
+    markets: asArray(root.odds?.market).map(parseMarket),
+  };
+}
+
+/**
+ * Parses the <summary_response> the event summary endpoint returns.
+ */
+export function parseEventSummary(xml: string): EventSummary | null {
+  const root = xmlParser.parse(xml)?.summary_response;
+  if (!root) return null;
+
+  const sportEvent = asArray(root.sport_event)[0];
+  const status = root.sport_event_status ?? {};
+  const fixture = sportEvent ? parseSportEvent(sportEvent) : null;
+
+  return {
+    eventId: fixture?.eventId ?? '',
+    status: String(status['@_status'] ?? 'SCHEDULED') as FixtureStatus,
+    settled: String(status['@_settled']) === 'true',
+    settledMarkets: Number(status['@_settled_markets'] ?? 0),
+    lastSettlementAt: optionalText(status['@_last_settlement_at']),
+    generatedAt: String(root['@_generated_at'] ?? ''),
+    fixture,
+    markets: asArray(root.settlements?.market).map(parseSettlementMarket),
+  };
+}
+
+function parseSportEvent(event: any): Fixture {
+  return {
+    eventId: String(event['@_id'] ?? ''),
+    name: String(event['@_name'] ?? ''),
+    scheduledTime: String(event['@_scheduled'] ?? ''),
+    status: String(event['@_status'] ?? 'SCHEDULED') as FixtureStatus,
+    competitors: asArray(event.competitors?.competitor).map((c: any) => ({
+      id: String(c['@_id']),
+      name: String(c['@_name'] ?? ''),
+      qualifier: c['@_qualifier'] === 'away' ? 'away' : 'home',
+    })),
+    sport: parseUrn(event.sport),
+    card: event.card
+      ? { id: String(event.card['@_id']), name: optionalText(event.card['@_name']) }
+      : null,
+    tournament: parseUrn(event.tournament),
+    weightClass: optionalText(event['@_weight_class']),
+    plannedRounds: event['@_planned_rounds'] != null ? Number(event['@_planned_rounds']) : null,
+    isLiveOdds: String(event['@_is_liveodds']) === 'true',
+    imgFightId: parseImgFightId(event),
+  };
+}
+
+function parseMarket(market: any): Market {
+  return {
+    id: Number(market['@_id']),
+    specifiers: market['@_specifiers'] != null ? String(market['@_specifiers']) : undefined,
+    status: Number(market['@_status'] ?? 0),
+    outcomes: asArray(market.outcome).map((o: any) => ({
+      id: String(o['@_id']),
+      odds: o['@_odds'] != null ? Number(o['@_odds']) : undefined,
+      active: o['@_active'] === 1 || o['@_active'] === '1',
+      probabilities: o['@_probabilities'] != null ? Number(o['@_probabilities']) : undefined,
+    })),
+  };
+}
+
+function parseSettlementMarket(market: any): SettlementMarket {
+  return {
+    id: Number(market['@_id']),
+    specifiers: market['@_specifiers'] != null ? String(market['@_specifiers']) : undefined,
+    voidReason: market['@_void_reason'] != null ? String(market['@_void_reason']) : undefined,
+    outcomes: asArray(market.outcome).map((o: any) => ({
+      id: String(o['@_id']),
+      result: toResult(String(o['@_result'])),
+      voidFactor: o['@_void_factor'] != null ? Number(o['@_void_factor']) : undefined,
+      deadHeatFactor: o['@_dead_heat_factor'] != null ? Number(o['@_dead_heat_factor']) : undefined,
+    })),
+  };
+}
+
+function parseImgFightId(event: any): string | null {
+  const references = asArray(event.reference_ids?.reference_id);
+  const img = references.find((r: any) => String(r['@_name']) === 'img');
+  return img ? String(img['@_value']) : null;
+}
+
+function parseUrn(node: any): SportUrn | null {
+  if (!node) return null;
+  return { id: String(node['@_id'] ?? ''), name: String(node['@_name'] ?? '') };
+}
+
+function toResult(code: string): SettlementOutcome['result'] {
+  if (code === '1') return 'won';
+  if (code === '0') return 'lost';
+  if (code === '-1') return 'void';
+  return 'undecided';
+}
+
+function optionalText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value);
+  return text.length > 0 ? text : null;
+}
+
+function asArray(value: unknown): any[] {
+  if (value === null || value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
 }
