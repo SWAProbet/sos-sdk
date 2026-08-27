@@ -2,7 +2,14 @@ import { EventEmitter } from 'events';
 import { AmqpConnection } from './amqp/connection';
 import { AmqpConsumer } from './amqp/consumer';
 import { RecoveryManager } from './recovery/recoveryManager';
-import { parseUofXml, detectMessageType } from './xml/parser';
+import { UofApiClient } from './http/apiClient';
+import {
+  parseUofXml,
+  detectMessageType,
+  parseFixtures,
+  parseProbabilities,
+  parseEventSummary,
+} from './xml/parser';
 import {
   SwaUofClientConfig,
   SwaUofEventMap,
@@ -13,7 +20,16 @@ import {
   FixtureChangeEvent,
   SnapshotCompleteEvent,
   BetCancelEvent,
+  Fixture,
+  FixtureQuery,
+  Probabilities,
+  EventSummary,
+  EventRecoveryKind,
+  RecoveryRequestAccepted,
 } from './types';
+
+// This feed carries MMA; the server exposes its fixtures under that path.
+const EVENTS_PATH = 'v1/sports/mma/events';
 
 const DEFAULT_BINDING_PATTERNS = [
   'mma.live.#',
@@ -24,6 +40,7 @@ export class SwaUofClient extends EventEmitter {
   private amqpConnection: AmqpConnection;
   private consumer: AmqpConsumer;
   private recoveryManager: RecoveryManager;
+  private api: UofApiClient;
   private config: Required<SwaUofClientConfig>;
 
   constructor(userConfig: SwaUofClientConfig) {
@@ -38,6 +55,7 @@ export class SwaUofClient extends EventEmitter {
       autoRecover: userConfig.autoRecover ?? true,
     };
 
+    this.api = new UofApiClient(this.config.apiHost, this.config.accessToken);
     this.amqpConnection = new AmqpConnection(this.config.amqpHost);
     this.consumer = new AmqpConsumer(
       this.amqpConnection,
@@ -45,8 +63,7 @@ export class SwaUofClient extends EventEmitter {
       this.config.bindingPatterns,
     );
     this.recoveryManager = new RecoveryManager(
-      this.config.apiHost,
-      this.config.accessToken,
+      this.api,
       this.config.aliveTimeoutMs,
       this.config.autoRecover,
     );
@@ -88,23 +105,70 @@ export class SwaUofClient extends EventEmitter {
    * Fetch market descriptions from the API (convenience method).
    */
   async getMarketDescriptions(): Promise<any> {
-    const response = await fetch(
-      `${this.config.apiHost}/uof-api/v1/descriptions/markets/json`,
-      { headers: { 'X-API-Key': this.config.accessToken } },
-    );
-    return response.json();
+    return this.api.getJson('v1/descriptions/markets/json');
   }
 
   /**
-   * Fetch fixtures from the API (convenience method).
+   * Fixtures the feed knows about, so a partner can map event ids onto their
+   * own before a card starts.
    */
-  async getFixtures(date?: string): Promise<any> {
-    const params = date ? `?date=${date}` : '';
-    const response = await fetch(
-      `${this.config.apiHost}/uof-api/v1/sports/mma/events/json${params}`,
-      { headers: { 'X-API-Key': this.config.accessToken } },
-    );
-    return response.json();
+  async getFixtures(query: FixtureQuery = {}): Promise<Fixture[]> {
+    const xml = await this.api.getXml(EVENTS_PATH, {
+      date: query.date,
+      status: query.status,
+      is_liveodds: query.isLiveOdds === undefined ? undefined : String(query.isLiveOdds),
+    });
+    return parseFixtures(xml);
+  }
+
+  /** This route serves JSON, so there is nothing to parse. */
+  async getFixture(eventId: string): Promise<Fixture> {
+    return this.api.getJson<Fixture>(`${EVENTS_PATH}/${eventId}`);
+  }
+
+  /**
+   * Result and settlement state for one event.
+   */
+  async getEventSummary(eventId: string): Promise<EventSummary | null> {
+    return parseEventSummary(await this.api.getXml(`${EVENTS_PATH}/${eventId}/summary`));
+  }
+
+  /**
+   * Current odds for an event, returned in the HTTP response rather than over
+   * the queue. Narrow to one market, or to one market and specifier set.
+   */
+  async getProbabilities(
+    eventId: string,
+    marketId?: string | number,
+    specifiers?: string,
+  ): Promise<Probabilities | null> {
+    const path = ['v1/probabilities', eventId, marketId, specifiers]
+      .filter(part => part !== undefined && part !== '')
+      .join('/');
+    return parseProbabilities(await this.api.getXml(path));
+  }
+
+  /**
+   * Ask the server to republish the current odds for one event to this
+   * partner's recovery queue.
+   */
+  async recoverEvent(eventId: string): Promise<RecoveryRequestAccepted> {
+    return this.recoverEventMessages(eventId, 'odds');
+  }
+
+  /**
+   * Ask the server to republish the settlements, bet stops and bet cancels for
+   * one event.
+   */
+  async recoverStatefulMessages(eventId: string): Promise<RecoveryRequestAccepted> {
+    return this.recoverEventMessages(eventId, 'stateful_messages');
+  }
+
+  private recoverEventMessages(
+    eventId: string,
+    kind: EventRecoveryKind,
+  ): Promise<RecoveryRequestAccepted> {
+    return this.api.post(`recovery/${kind}/events/${eventId}/initiate_request`);
   }
 
   private wireEvents(): void {

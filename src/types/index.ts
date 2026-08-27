@@ -126,3 +126,75 @@ export type SwaUofEventMap = {
   recoveryCompleted: void;
   error: Error;
 };
+
+// Fixtures and query responses served over the REST API
+
+export interface SportUrn {
+  id: string;
+  name: string;
+}
+
+export interface FixtureCompetitor {
+  id: string;
+  name: string;
+  qualifier: 'home' | 'away';
+}
+
+export interface FixtureCard {
+  id: string;
+  name: string | null;
+}
+
+export type FixtureStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+
+export interface Fixture {
+  eventId: string;
+  name: string;
+  scheduledTime: string;
+  status: FixtureStatus;
+  competitors: FixtureCompetitor[];
+  sport: SportUrn | null;
+  card: FixtureCard | null;
+  tournament: SportUrn | null;
+  weightClass: string | null;
+  plannedRounds: number | null;
+  isLiveOdds: boolean;
+  /** The upstream IMG fight id, when the feed knows it. */
+  imgFightId: string | null;
+}
+
+export interface FixtureQuery {
+  date?: string;
+  status?: FixtureStatus;
+  isLiveOdds?: boolean;
+}
+
+export interface Probabilities {
+  eventId: string;
+  productId: number;
+  timestamp: number;
+  generatedAt: string;
+  markets: Market[];
+}
+
+export interface EventSummary {
+  eventId: string;
+  status: FixtureStatus;
+  settled: boolean;
+  settledMarkets: number;
+  lastSettlementAt: string | null;
+  generatedAt: string;
+  fixture: Fixture | null;
+  markets: SettlementMarket[];
+}
+
+/** Which stored messages a per-event recovery replays. */
+export type EventRecoveryKind = 'odds' | 'stateful_messages';
+
+export interface RecoveryRequestAccepted {
+  requestId: string;
+  eventId: string;
+  kind: EventRecoveryKind;
+  estimatedMessages: number;
+  status: string;
+}
