@@ -1,12 +1,21 @@
-export { SwaUofClient } from './client';
-export { parseUofXml, detectMessageType } from './xml/parser';
+export { SosClient } from './client';
+export { parseSosXml, detectMessageType } from './xml/parser';
+
+// Deprecated aliases from the UOF-era naming; prefer the Sos names.
+export { SosClient as SwaUofClient } from './client';
+export { parseSosXml as parseUofXml } from './xml/parser';
+export type {
+  SosClientConfig as SwaUofClientConfig,
+  SosEventMap as SwaUofEventMap,
+  SosSport as SwaUofSport,
+} from './types';
 export {
   OddsChangeEvent,
   BetSettlementEvent,
   BetStopEvent,
   AliveEvent,
-  SwaUofClientConfig,
-  SwaUofEventMap,
+  SosClientConfig,
+  SosEventMap,
   Market,
   Outcome,
   SettlementMarket,

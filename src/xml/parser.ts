@@ -18,7 +18,7 @@ const xmlParser = new XMLParser({
   isArray: (tagName) => ['market', 'outcome', 'competitor', 'result'].includes(tagName),
 });
 
-export function parseUofXml(xml: string): OddsChangeEvent | BetSettlementEvent | BetStopEvent | AliveEvent | null {
+export function parseSosXml(xml: string): OddsChangeEvent | BetSettlementEvent | BetStopEvent | AliveEvent | null {
   const parsed = xmlParser.parse(xml);
 
   if (parsed.odds_change) return parseOddsChange(parsed.odds_change);

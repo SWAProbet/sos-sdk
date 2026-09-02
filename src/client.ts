@@ -2,31 +2,31 @@ import { EventEmitter } from 'events';
 import { AmqpConnection } from './amqp/connection';
 import { AmqpConsumer } from './amqp/consumer';
 import { RecoveryManager } from './recovery/recoveryManager';
-import { parseUofXml, detectMessageType } from './xml/parser';
+import { parseSosXml, detectMessageType } from './xml/parser';
 import {
-  SwaUofClientConfig,
-  SwaUofSport,
-  SwaUofEventMap,
+  SosClientConfig,
+  SosSport,
+  SosEventMap,
   OddsChangeEvent,
   BetSettlementEvent,
   BetStopEvent,
   AliveEvent,
 } from './types';
 
-const DEFAULT_SPORT: SwaUofSport = 'mma';
+const DEFAULT_SPORT: SosSport = 'mma';
 
 // One feed carries one sport, so bind only that sport plus the shared alive stream.
-function defaultBindingPatterns(sport: SwaUofSport): string[] {
+function defaultBindingPatterns(sport: SosSport): string[] {
   return [`${sport}.live.#`, 'system.live.alive.#'];
 }
 
-export class SwaUofClient extends EventEmitter {
+export class SosClient extends EventEmitter {
   private amqpConnection: AmqpConnection;
   private consumer: AmqpConsumer;
   private recoveryManager: RecoveryManager;
-  private config: Required<SwaUofClientConfig>;
+  private config: Required<SosClientConfig>;
 
-  constructor(userConfig: SwaUofClientConfig) {
+  constructor(userConfig: SosClientConfig) {
     super();
 
     this.config = {
@@ -43,7 +43,7 @@ export class SwaUofClient extends EventEmitter {
     this.amqpConnection = new AmqpConnection(this.config.amqpHost);
     this.consumer = new AmqpConsumer(
       this.amqpConnection,
-      'swa.uof',
+      'swa.sos',
       this.config.bindingPatterns,
     );
     this.recoveryManager = new RecoveryManager(
@@ -75,14 +75,14 @@ export class SwaUofClient extends EventEmitter {
   /**
    * Type-safe event listener.
    */
-  on<K extends keyof SwaUofEventMap>(
+  on<K extends keyof SosEventMap>(
     event: K,
-    listener: (data: SwaUofEventMap[K]) => void,
+    listener: (data: SosEventMap[K]) => void,
   ): this {
     return super.on(event, listener);
   }
 
-  emit<K extends keyof SwaUofEventMap>(event: K, data?: SwaUofEventMap[K]): boolean {
+  emit<K extends keyof SosEventMap>(event: K, data?: SosEventMap[K]): boolean {
     return super.emit(event, data);
   }
 
@@ -91,7 +91,7 @@ export class SwaUofClient extends EventEmitter {
    */
   async getMarketDescriptions(): Promise<any> {
     const response = await fetch(
-      `${this.config.apiHost}/uof-api/v1/descriptions/markets/json`,
+      `${this.config.apiHost}/sos-api/v1/descriptions/markets/json`,
       { headers: { 'X-API-Key': this.config.accessToken } },
     );
     return response.json();
@@ -103,7 +103,7 @@ export class SwaUofClient extends EventEmitter {
   async getFixtures(date?: string): Promise<any> {
     const params = date ? `?date=${date}` : '';
     const response = await fetch(
-      `${this.config.apiHost}/uof-api/v1/sports/${this.config.sport}/events/json${params}`,
+      `${this.config.apiHost}/sos-api/v1/sports/${this.config.sport}/events/json${params}`,
       { headers: { 'X-API-Key': this.config.accessToken } },
     );
     return response.json();
@@ -112,19 +112,19 @@ export class SwaUofClient extends EventEmitter {
   private wireEvents(): void {
     // AMQP connection lifecycle
     this.amqpConnection.on('connected', async () => {
-      console.log('[SwaUofSDK] AMQP connected');
+      console.log('[SosSDK] AMQP connected');
       try {
         await this.consumer.start();
         this.recoveryManager.startMonitoring();
         this.emit('connected');
       } catch (err: any) {
-        console.error('[SwaUofSDK] Failed to start consumer:', err);
+        console.error('[SosSDK] Failed to start consumer:', err);
         this.emit('error', err);
       }
     });
 
     this.amqpConnection.on('disconnected', () => {
-      console.log('[SwaUofSDK] AMQP disconnected');
+      console.log('[SosSDK] AMQP disconnected');
       this.recoveryManager.stopMonitoring();
       this.emit('disconnected');
     });
@@ -151,7 +151,7 @@ export class SwaUofClient extends EventEmitter {
   private handleMessage(xml: string): void {
     try {
       const msgType = detectMessageType(xml);
-      const parsed = parseUofXml(xml);
+      const parsed = parseSosXml(xml);
       if (!parsed) return;
 
       switch (msgType) {
@@ -170,7 +170,7 @@ export class SwaUofClient extends EventEmitter {
           break;
       }
     } catch (err: any) {
-      console.error('[SwaUofSDK] Failed to parse message:', err.message);
+      console.error('[SosSDK] Failed to parse message:', err.message);
     }
   }
 }

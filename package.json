@@ -1,5 +1,5 @@
 {
-  "name": "@swa/uof-sdk",
+  "name": "@swa/sos-sdk",
   "version": "1.0.0",
   "description": "SWA Unified Odds Feed client SDK — connects to SWA UOF Server via AMQP and consumes live MMA odds",
   "main": "dist/index.js",

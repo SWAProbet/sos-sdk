@@ -49,7 +49,7 @@ export class AmqpConnection extends EventEmitter {
       this.channel = ch;
 
       conn.on('error', (err: Error) => {
-        console.error('[SwaUofSDK:AMQP] Connection error:', err.message);
+        console.error('[SosSDK:AMQP] Connection error:', err.message);
       });
 
       conn.on('close', () => {
@@ -61,7 +61,7 @@ export class AmqpConnection extends EventEmitter {
 
       this.emit('connected');
     } catch (err: any) {
-      console.error('[SwaUofSDK:AMQP] Connection failed:', err.message);
+      console.error('[SosSDK:AMQP] Connection failed:', err.message);
       this.scheduleReconnect();
     }
   }
