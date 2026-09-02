@@ -3,6 +3,9 @@ import {
   OddsChangeEvent,
   BetSettlementEvent,
   BetStopEvent,
+  BetCancelEvent,
+  FixtureChangeEvent,
+  SnapshotCompleteEvent,
   AliveEvent,
   Market,
   Outcome,
@@ -18,12 +21,17 @@ const xmlParser = new XMLParser({
   isArray: (tagName) => ['market', 'outcome', 'competitor', 'result'].includes(tagName),
 });
 
-export function parseSosXml(xml: string): OddsChangeEvent | BetSettlementEvent | BetStopEvent | AliveEvent | null {
+export function parseSosXml(
+  xml: string,
+): OddsChangeEvent | BetSettlementEvent | BetStopEvent | BetCancelEvent | FixtureChangeEvent | SnapshotCompleteEvent | AliveEvent | null {
   const parsed = xmlParser.parse(xml);
 
   if (parsed.odds_change) return parseOddsChange(parsed.odds_change);
   if (parsed.bet_settlement) return parseBetSettlement(parsed.bet_settlement);
   if (parsed.bet_stop) return parseBetStop(parsed.bet_stop);
+  if (parsed.bet_cancel) return parseBetCancel(parsed.bet_cancel);
+  if (parsed.fixture_change) return parseFixtureChange(parsed.fixture_change);
+  if (parsed.snapshot_complete) return parseSnapshotComplete(parsed.snapshot_complete);
   if (parsed.alive) return parseAlive(parsed.alive);
 
   return null;
@@ -126,6 +134,40 @@ function parseBetStop(stop: any): BetStopEvent {
   };
 }
 
+function parseBetCancel(bc: any): BetCancelEvent {
+  const rawMarkets = bc.market || [];
+  const marketArr = Array.isArray(rawMarkets) ? rawMarkets : [rawMarkets];
+
+  return {
+    productId: Number(bc['@_product']),
+    eventId: String(bc['@_event_id']),
+    timestamp: Number(bc['@_timestamp']),
+    startTime: bc['@_start_time'] != null ? Number(bc['@_start_time']) : undefined,
+    endTime: bc['@_end_time'] != null ? Number(bc['@_end_time']) : undefined,
+    markets: marketArr.filter(Boolean).map((m: any) => ({
+      id: Number(m['@_id']),
+      voidReason: m['@_void_reason'] != null ? m['@_void_reason'] : undefined,
+    })),
+  };
+}
+
+function parseFixtureChange(fc: any): FixtureChangeEvent {
+  return {
+    productId: Number(fc['@_product']),
+    eventId: String(fc['@_event_id']),
+    timestamp: Number(fc['@_timestamp']),
+    startTime: fc['@_start_time'] != null ? Number(fc['@_start_time']) : undefined,
+  };
+}
+
+function parseSnapshotComplete(sc: any): SnapshotCompleteEvent {
+  return {
+    productId: Number(sc['@_product']),
+    requestId: String(sc['@_request_id']),
+    timestamp: Number(sc['@_timestamp']),
+  };
+}
+
 function parseAlive(alive: any): AliveEvent {
   return {
     productId: Number(alive['@_product']),
@@ -141,6 +183,9 @@ export function detectMessageType(xml: string): string | null {
   if (xml.includes('<odds_change')) return 'odds_change';
   if (xml.includes('<bet_settlement')) return 'bet_settlement';
   if (xml.includes('<bet_stop')) return 'bet_stop';
+  if (xml.includes('<bet_cancel')) return 'bet_cancel';
+  if (xml.includes('<fixture_change')) return 'fixture_change';
+  if (xml.includes('<snapshot_complete')) return 'snapshot_complete';
   if (xml.includes('<alive')) return 'alive';
   return null;
 }

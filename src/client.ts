@@ -10,6 +10,9 @@ import {
   OddsChangeEvent,
   BetSettlementEvent,
   BetStopEvent,
+  BetCancelEvent,
+  FixtureChangeEvent,
+  SnapshotCompleteEvent,
   AliveEvent,
 } from './types';
 
@@ -163,6 +166,15 @@ export class SosClient extends EventEmitter {
           break;
         case 'bet_stop':
           this.emit('betStop', parsed as BetStopEvent);
+          break;
+        case 'bet_cancel':
+          this.emit('betCancel', parsed as BetCancelEvent);
+          break;
+        case 'fixture_change':
+          this.emit('fixtureChange', parsed as FixtureChangeEvent);
+          break;
+        case 'snapshot_complete':
+          this.emit('snapshotComplete', parsed as SnapshotCompleteEvent);
           break;
         case 'alive':
           this.recoveryManager.onAlive(parsed as AliveEvent);

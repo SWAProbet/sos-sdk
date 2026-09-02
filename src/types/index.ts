@@ -89,10 +89,36 @@ export interface SosClientConfig {
   autoRecover?: boolean;
 }
 
+export interface FixtureChangeEvent {
+  productId: number;
+  eventId: string;
+  timestamp: number;
+  /** Epoch millis of the scheduled start, when the feed knows it. */
+  startTime?: number;
+}
+
+export interface BetCancelEvent {
+  productId: number;
+  eventId: string;
+  timestamp: number;
+  startTime?: number;
+  endTime?: number;
+  markets: Array<{ id: number; voidReason?: string | number }>;
+}
+
+export interface SnapshotCompleteEvent {
+  productId: number;
+  requestId: string;
+  timestamp: number;
+}
+
 export type SosEventMap = {
   oddsChange: OddsChangeEvent;
   betSettlement: BetSettlementEvent;
   betStop: BetStopEvent;
+  betCancel: BetCancelEvent;
+  fixtureChange: FixtureChangeEvent;
+  snapshotComplete: SnapshotCompleteEvent;
   alive: AliveEvent;
   connected: void;
   disconnected: void;
