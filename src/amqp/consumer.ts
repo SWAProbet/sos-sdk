@@ -17,7 +17,7 @@ export class AmqpConsumer extends EventEmitter {
   /**
    * Set up the queue and start consuming messages.
    */
-  async start(queuePrefix: string = 'swa.uof.sdk'): Promise<void> {
+  async start(queuePrefix: string = 'swa.sos.sdk'): Promise<void> {
     const channel = this.connection.getChannel();
     if (!channel) throw new Error('AMQP not connected');
 

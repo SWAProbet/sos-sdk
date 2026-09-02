@@ -1,4 +1,4 @@
-# @swa/uof-sdk
+# @swa/sos-sdk
 
 TypeScript client SDK for connecting to the SWA Unified Odds Feed. Consumes live odds via AMQP (RabbitMQ) with automatic recovery and XML deserialization.
 
@@ -7,15 +7,15 @@ Set `sport` to match the feed you are connecting to (tennis | tabletennis | voll
 ## Installation
 
 ```bash
-npm install @swa/uof-sdk
+npm install @swa/sos-sdk
 ```
 
 ## Usage
 
 ```typescript
-import { SwaUofClient } from '@swa/uof-sdk';
+import { SwaSosClient } from '@swa/sos-sdk';
 
-const client = new SwaUofClient({
+const client = new SwaSosClient({
   accessToken: 'your-api-key',
   sport: 'tennis',
   amqpHost: 'amqp://feed.swa.com',
@@ -62,19 +62,19 @@ await client.connect();
 
 ## API
 
-### `SwaUofClient`
+### `SwaSosClient`
 
 #### Constructor
 
 ```typescript
-new SwaUofClient(config: SwaUofClientConfig)
+new SwaSosClient(config: SwaSosClientConfig)
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `accessToken` | `string` | required | Partner API key |
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
-| `apiHost` | `string` | required | SWA UOF Server REST API URL |
+| `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
 | `bindingPatterns` | `string[]` | `['mma.live.#', 'system.live.alive.#']` | AMQP routing key patterns |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
@@ -115,5 +115,5 @@ import type {
   SettlementMarket,
   SettlementOutcome,
   SportEventStatus,
-} from '@swa/uof-sdk';
+} from '@swa/sos-sdk';
 ```
