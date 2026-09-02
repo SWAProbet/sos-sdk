@@ -73,14 +73,14 @@ export interface AliveEvent {
   subscribed: boolean;
 }
 
-export type SwaSosSport = 'tennis' | 'tabletennis' | 'volleyball' | 'mma' | 'boxing';
+export type SosSport = 'tennis' | 'tabletennis' | 'volleyball' | 'mma' | 'boxing';
 
-export interface SwaSosClientConfig {
+export interface SosClientConfig {
   accessToken: string;
   amqpHost: string;
   apiHost: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
-  sport?: SwaSosSport;
+  sport?: SosSport;
   /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
   bindingPatterns?: string[];
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
@@ -89,7 +89,7 @@ export interface SwaSosClientConfig {
   autoRecover?: boolean;
 }
 
-export type SwaSosEventMap = {
+export type SosEventMap = {
   oddsChange: OddsChangeEvent;
   betSettlement: BetSettlementEvent;
   betStop: BetStopEvent;

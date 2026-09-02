@@ -13,9 +13,9 @@ npm install @swa/sos-sdk
 ## Usage
 
 ```typescript
-import { SwaSosClient } from '@swa/sos-sdk';
+import { SosClient } from '@swa/sos-sdk';
 
-const client = new SwaSosClient({
+const client = new SosClient({
   accessToken: 'your-api-key',
   sport: 'tennis',
   amqpHost: 'amqp://feed.swa.com',
@@ -62,12 +62,12 @@ await client.connect();
 
 ## API
 
-### `SwaSosClient`
+### `SosClient`
 
 #### Constructor
 
 ```typescript
-new SwaSosClient(config: SwaSosClientConfig)
+new SosClient(config: SosClientConfig)
 ```
 
 | Option | Type | Default | Description |

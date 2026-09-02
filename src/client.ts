@@ -4,29 +4,29 @@ import { AmqpConsumer } from './amqp/consumer';
 import { RecoveryManager } from './recovery/recoveryManager';
 import { parseSosXml, detectMessageType } from './xml/parser';
 import {
-  SwaSosClientConfig,
-  SwaSosSport,
-  SwaSosEventMap,
+  SosClientConfig,
+  SosSport,
+  SosEventMap,
   OddsChangeEvent,
   BetSettlementEvent,
   BetStopEvent,
   AliveEvent,
 } from './types';
 
-const DEFAULT_SPORT: SwaSosSport = 'mma';
+const DEFAULT_SPORT: SosSport = 'mma';
 
 // One feed carries one sport, so bind only that sport plus the shared alive stream.
-function defaultBindingPatterns(sport: SwaSosSport): string[] {
+function defaultBindingPatterns(sport: SosSport): string[] {
   return [`${sport}.live.#`, 'system.live.alive.#'];
 }
 
-export class SwaSosClient extends EventEmitter {
+export class SosClient extends EventEmitter {
   private amqpConnection: AmqpConnection;
   private consumer: AmqpConsumer;
   private recoveryManager: RecoveryManager;
-  private config: Required<SwaSosClientConfig>;
+  private config: Required<SosClientConfig>;
 
-  constructor(userConfig: SwaSosClientConfig) {
+  constructor(userConfig: SosClientConfig) {
     super();
 
     this.config = {
@@ -75,14 +75,14 @@ export class SwaSosClient extends EventEmitter {
   /**
    * Type-safe event listener.
    */
-  on<K extends keyof SwaSosEventMap>(
+  on<K extends keyof SosEventMap>(
     event: K,
-    listener: (data: SwaSosEventMap[K]) => void,
+    listener: (data: SosEventMap[K]) => void,
   ): this {
     return super.on(event, listener);
   }
 
-  emit<K extends keyof SwaSosEventMap>(event: K, data?: SwaSosEventMap[K]): boolean {
+  emit<K extends keyof SosEventMap>(event: K, data?: SosEventMap[K]): boolean {
     return super.emit(event, data);
   }
 
@@ -112,19 +112,19 @@ export class SwaSosClient extends EventEmitter {
   private wireEvents(): void {
     // AMQP connection lifecycle
     this.amqpConnection.on('connected', async () => {
-      console.log('[SwaSosSDK] AMQP connected');
+      console.log('[SosSDK] AMQP connected');
       try {
         await this.consumer.start();
         this.recoveryManager.startMonitoring();
         this.emit('connected');
       } catch (err: any) {
-        console.error('[SwaSosSDK] Failed to start consumer:', err);
+        console.error('[SosSDK] Failed to start consumer:', err);
         this.emit('error', err);
       }
     });
 
     this.amqpConnection.on('disconnected', () => {
-      console.log('[SwaSosSDK] AMQP disconnected');
+      console.log('[SosSDK] AMQP disconnected');
       this.recoveryManager.stopMonitoring();
       this.emit('disconnected');
     });
@@ -170,7 +170,7 @@ export class SwaSosClient extends EventEmitter {
           break;
       }
     } catch (err: any) {
-      console.error('[SwaSosSDK] Failed to parse message:', err.message);
+      console.error('[SosSDK] Failed to parse message:', err.message);
     }
   }
 }

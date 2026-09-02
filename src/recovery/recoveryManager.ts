@@ -25,7 +25,7 @@ export class RecoveryManager extends EventEmitter {
     this.monitorTimer = setInterval(() => {
       const elapsed = Date.now() - this.lastAliveAt;
       if (elapsed > this.aliveTimeoutMs && !this.isRecovering && this.autoRecover) {
-        console.warn(`[SwaSosSDK:Recovery] No alive for ${elapsed}ms — triggering recovery`);
+        console.warn(`[SosSDK:Recovery] No alive for ${elapsed}ms — triggering recovery`);
         this.triggerRecovery();
       }
     }, 5000);
@@ -79,7 +79,7 @@ export class RecoveryManager extends EventEmitter {
       // Poll for completion
       await this.pollRecoveryStatus(result.requestId);
     } catch (err) {
-      console.error('[SwaSosSDK:Recovery] Error:', err);
+      console.error('[SosSDK:Recovery] Error:', err);
       this.emit('error', err);
     } finally {
       this.isRecovering = false;
