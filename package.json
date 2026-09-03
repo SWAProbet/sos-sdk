@@ -1,9 +1,24 @@
 {
   "name": "@swa/sos-sdk",
   "version": "1.0.0",
-  "description": "SWA Unified Odds Feed client SDK — connects to SWA UOF Server via AMQP and consumes live MMA odds",
+  "description": "SWA Odds Service (SOS) client SDK — consumes the live odds feed (UOF-compatible XML over AMQP) for boxing, MMA, tennis, table tennis and volleyball",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SWAProbet/sos-sdk.git"
+  },
+  "keywords": [
+    "swa",
+    "sos",
+    "odds",
+    "betting-feed",
+    "amqp"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
