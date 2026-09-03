@@ -1,4 +1,4 @@
-# @swa/sos-sdk
+# @swa-voltron/sos-sdk
 
 TypeScript client SDK for connecting to the SWA Unified Odds Feed. Consumes live odds via AMQP (RabbitMQ) with automatic recovery and XML deserialization.
 
@@ -7,13 +7,13 @@ Set `sport` to match the feed you are connecting to (tennis | tabletennis | voll
 ## Installation
 
 ```bash
-npm install @swa/sos-sdk
+npm install @swa-voltron/sos-sdk
 ```
 
 ## Usage
 
 ```typescript
-import { SosClient } from '@swa/sos-sdk';
+import { SosClient } from '@swa-voltron/sos-sdk';
 
 const client = new SosClient({
   accessToken: 'your-api-key',
@@ -115,5 +115,5 @@ import type {
   SettlementMarket,
   SettlementOutcome,
   SportEventStatus,
-} from '@swa/sos-sdk';
+} from '@swa-voltron/sos-sdk';
 ```
