@@ -126,3 +126,77 @@ export type SosEventMap = {
   recoveryCompleted: void;
   error: Error;
 };
+
+// --- Fixtures, as /v1/sports/{sport}/events/json answers them ---
+
+export type FixtureStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+
+export type CompetitorGender = 'female' | 'male';
+
+export interface SportUrn {
+  id: string;
+  name: string;
+}
+
+export interface FixtureCompetitor {
+  id: string;
+  name: string;
+  qualifier: 'home' | 'away';
+  /** As SWA holds it; absent where the feed has no value. */
+  gender?: CompetitorGender;
+}
+
+export interface FixtureCard {
+  id: string;
+  name: string | null;
+}
+
+export interface Fixture {
+  /** The event id the feed publishes on odds_change and bet_settlement. */
+  eventId: string;
+  /** SWA's own identifier. Provisional: it changes on every response until SWA fixes it. */
+  sosId: string;
+  imgFightId: string | null;
+  name: string;
+  /** ISO 8601, or null while the feed holds no start time. */
+  scheduledTime: string | null;
+  status: FixtureStatus;
+  competitors: FixtureCompetitor[];
+  sport: SportUrn;
+  card: FixtureCard | null;
+  tournament: SportUrn | null;
+  weightClass: string | null;
+  plannedRounds: number | null;
+  isLiveOdds: boolean;
+  updatedAt: string;
+}
+
+export interface FixtureFilters {
+  /** YYYY-MM-DD, a UTC calendar day. */
+  date?: string;
+  status?: FixtureStatus;
+  isLiveOdds?: boolean;
+}
+
+export interface EventSummaryOutcome {
+  id: string;
+  result: number;
+  void_factor?: number;
+  dead_heat_factor?: number;
+}
+
+export interface EventSummaryMarket {
+  id: string;
+  specifiers: string | null;
+  voidReason: string | null;
+  outcomes: EventSummaryOutcome[];
+}
+
+export interface EventSummary {
+  fixture: Fixture;
+  settled: boolean;
+  settledMarkets: number;
+  lastSettlementAt: string | null;
+  markets: EventSummaryMarket[];
+  generatedAt: string;
+}

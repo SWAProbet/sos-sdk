@@ -2,7 +2,7 @@
 
 TypeScript client SDK for connecting to the SWA Unified Odds Feed. Consumes live odds via AMQP (RabbitMQ) with automatic recovery and XML deserialization.
 
-Set `sport` to match the feed you are connecting to (tennis | tabletennis | volleyball | mma, default mma). It scopes the queue bindings to `{sport}.live.#` and points the fixtures lookup at `/v1/sports/{sport}/events`.
+Set `sport` to match the feed you are connecting to (tennis | tabletennis | volleyball | mma | boxing, default mma). It scopes the queue bindings to `{sport}.live.#` and points the fixtures lookup at `/v1/sports/{sport}/events`.
 
 ## Installation
 
@@ -46,7 +46,7 @@ client.on('betStop', (event) => {
 });
 
 client.on('alive', (event) => {
-  // Heartbeat — SDK handles recovery automatically
+  // Heartbeat : SDK handles recovery automatically
 });
 
 client.on('recoveryStarted', ({ estimatedMessages }) => {
@@ -81,10 +81,12 @@ new SosClient(config: SosClientConfig)
 
 #### Methods
 
-- `connect()` — connect to the feed
-- `disconnect()` — disconnect
-- `getMarketDescriptions()` — fetch market definitions from the API
-- `getFixtures(date?)` — fetch scheduled events
+- `connect()` : connect to the feed
+- `disconnect()` : disconnect
+- `getMarketDescriptions()` : fetch market definitions from the API
+- `getFixtures(filters?)`: every fixture the feed holds for the client's sport, as `Fixture[]`. Filters are `date` (YYYY-MM-DD), `status` and `isLiveOdds`. A bare date string is still accepted.
+- `getFixture(eventId)`: one fixture, or `null` when the feed does not hold it.
+- `getEventSummary(eventId)`: the fixture with its result and settlement state, or `null`.
 
 #### Events
 

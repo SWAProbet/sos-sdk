@@ -4,6 +4,9 @@ import { AmqpConsumer } from './amqp/consumer';
 import { RecoveryManager } from './recovery/recoveryManager';
 import { parseSosXml, detectMessageType } from './xml/parser';
 import {
+  EventSummary,
+  Fixture,
+  FixtureFilters,
   SosClientConfig,
   SosSport,
   SosEventMap,
@@ -101,15 +104,44 @@ export class SosClient extends EventEmitter {
   }
 
   /**
-   * Fetch fixtures from the API (convenience method).
+   * Every fixture the feed holds for this sport, filtered by date, status and whether
+   * the feed will price it. A bare date string is still accepted, as before.
    */
-  async getFixtures(date?: string): Promise<any> {
-    const params = date ? `?date=${date}` : '';
-    const response = await fetch(
-      `${this.config.apiHost}/sos-api/v1/sports/${this.config.sport}/events/json${params}`,
-      { headers: { 'X-API-Key': this.config.accessToken } },
-    );
-    return response.json();
+  async getFixtures(filters: FixtureFilters | string = {}): Promise<Fixture[]> {
+    const query = typeof filters === 'string' ? { date: filters } : filters;
+    const params = new URLSearchParams();
+    if (query.date) params.set('date', query.date);
+    if (query.status) params.set('status', query.status);
+    if (query.isLiveOdds !== undefined) params.set('is_liveodds', String(query.isLiveOdds));
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const body = await this.getJson<{ events: Fixture[] }>(`${this.fixturesPath()}/json${suffix}`);
+    return body?.events ?? [];
+  }
+
+  /**
+   * One fixture by its event id, or null when the feed does not hold it.
+   */
+  async getFixture(eventId: string): Promise<Fixture | null> {
+    return this.getJson<Fixture>(`${this.fixturesPath()}/${encodeURIComponent(eventId)}`);
+  }
+
+  /**
+   * The fixture plus its result and settlement state, or null when the feed does not hold it.
+   */
+  async getEventSummary(eventId: string): Promise<EventSummary | null> {
+    return this.getJson<EventSummary>(`${this.fixturesPath()}/${encodeURIComponent(eventId)}/summary/json`);
+  }
+
+  private fixturesPath(): string {
+    return `${this.config.apiHost}/sos-api/v1/sports/${this.config.sport}/events`;
+  }
+
+  // A 404 is an answer (nothing held), any other failure is an error.
+  private async getJson<T>(url: string): Promise<T | null> {
+    const response = await fetch(url, { headers: { 'X-API-Key': this.config.accessToken } });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`SOS API ${response.status} for ${url}`);
+    return (await response.json()) as T;
   }
 
   private wireEvents(): void {
