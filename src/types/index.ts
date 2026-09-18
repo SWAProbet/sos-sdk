@@ -79,6 +79,8 @@ export interface SosClientConfig {
   accessToken: string;
   amqpHost: string;
   apiHost: string;
+  /** Path the REST API is mounted at behind apiHost. Default: /sos-api. */
+  apiBasePath?: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
   sport?: SosSport;
   /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
@@ -154,7 +156,7 @@ export interface FixtureCard {
 export interface Fixture {
   /** The event id the feed publishes on odds_change and bet_settlement. */
   eventId: string;
-  /** SWA's own identifier. Provisional: it changes on every response until SWA fixes it. */
+  /** SWA's own identifier. Provisional: derived from eventId until SWA assigns it, so stable but not yet authoritative. */
   sosId: string;
   imgFightId: string | null;
   name: string;
@@ -180,23 +182,24 @@ export interface FixtureFilters {
 
 export interface EventSummaryOutcome {
   id: string;
-  result: number;
-  void_factor?: number;
-  dead_heat_factor?: number;
+  /** As the feed sent it: 1 won, 0 lost, -1 void. */
+  result: string;
+  voidFactor?: number;
+  deadHeatFactor?: number;
 }
 
 export interface EventSummaryMarket {
   id: string;
-  specifiers: string | null;
-  voidReason: string | null;
+  specifiers?: string;
+  voidReason?: string;
   outcomes: EventSummaryOutcome[];
 }
 
 export interface EventSummary {
   fixture: Fixture;
   settled: boolean;
-  settledMarkets: number;
-  lastSettlementAt: string | null;
+  betStopped: boolean;
   markets: EventSummaryMarket[];
+  lastSettlementAt: string | null;
   generatedAt: string;
 }

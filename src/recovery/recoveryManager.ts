@@ -11,6 +11,7 @@ export class RecoveryManager extends EventEmitter {
     private accessToken: string,
     private aliveTimeoutMs: number,
     private autoRecover: boolean,
+    private apiBasePath: string = '/sos-api',
   ) {
     super();
   }
@@ -25,7 +26,7 @@ export class RecoveryManager extends EventEmitter {
     this.monitorTimer = setInterval(() => {
       const elapsed = Date.now() - this.lastAliveAt;
       if (elapsed > this.aliveTimeoutMs && !this.isRecovering && this.autoRecover) {
-        console.warn(`[SosSDK:Recovery] No alive for ${elapsed}ms — triggering recovery`);
+        console.warn(`[SosSDK:Recovery] No alive for ${elapsed}ms, triggering recovery`);
         this.triggerRecovery();
       }
     }, 5000);
@@ -46,7 +47,7 @@ export class RecoveryManager extends EventEmitter {
   }
 
   /**
-   * Called on reconnect — requests recovery from the server.
+   * Called on reconnect: requests recovery from the server.
    */
   async onReconnect(): Promise<void> {
     if (!this.autoRecover) return;
@@ -59,7 +60,7 @@ export class RecoveryManager extends EventEmitter {
 
     try {
       const after = new Date(this.lastAliveAt).toISOString();
-      const url = `${this.apiHost}/sos-api/recovery/1/initiate_request?after=${encodeURIComponent(after)}`;
+      const url = `${this.apiHost}${this.apiBasePath}/recovery/1/initiate_request?after=${encodeURIComponent(after)}`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -92,7 +93,7 @@ export class RecoveryManager extends EventEmitter {
       await new Promise(r => setTimeout(r, 2000));
 
       try {
-        const url = `${this.apiHost}/sos-api/recovery/1/status?request_id=${encodeURIComponent(requestId)}`;
+        const url = `${this.apiHost}${this.apiBasePath}/recovery/1/status?request_id=${encodeURIComponent(requestId)}`;
         const response = await fetch(url, {
           headers: { 'X-API-Key': this.accessToken },
         });

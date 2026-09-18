@@ -75,6 +75,7 @@ new SosClient(config: SosClientConfig)
 | `accessToken` | `string` | required | Partner API key |
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
+| `apiBasePath` | `string` | `/sos-api` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
 | `bindingPatterns` | `string[]` | `['mma.live.#', 'system.live.alive.#']` | AMQP routing key patterns |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |

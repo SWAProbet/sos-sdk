@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 import { SosClient } from '../../src/client';
+import { EventSummary, Fixture } from '../../src/types';
 
 // The API, stubbed at fetch: what the client asks for and how it reads the answer.
 type Call = { url: string; headers: Record<string, string> };
@@ -17,7 +18,8 @@ function stubFetch(status: number, body: unknown): { calls: Call[] } {
 const client = (sport?: 'boxing' | 'mma') =>
   new SosClient({ accessToken: 'key', amqpHost: 'amqp://unused', apiHost: 'https://api.example', sport });
 
-const FIXTURE = {
+// Recorded from a boxing server's /json answer, and typed, so the type tracks the wire.
+const FIXTURE: Fixture = {
   eventId: 'sr:match:72065192',
   sosId: '0b1f6c2e-3a4d-4c5e-9f70-1a2b3c4d5e6f',
   imgFightId: null,
@@ -72,7 +74,14 @@ describe('fixtures through the SDK', () => {
   });
 
   it('reads an event summary as JSON, and null when there is none', async () => {
-    const summary = { fixture: FIXTURE, settled: true, settledMarkets: 2, lastSettlementAt: '2026-09-15T19:12:04.000Z', markets: [], generatedAt: '2026-09-15T19:15:00.000Z' };
+    const summary: EventSummary = {
+      fixture: FIXTURE,
+      settled: true,
+      betStopped: false,
+      markets: [{ id: '1510', specifiers: 'total=2.5|roundnr=1', voidReason: 'fight_cancelled', outcomes: [{ id: 'sr:outcome:12', result: '-1', voidFactor: 0.5, deadHeatFactor: 0.25 }] }],
+      lastSettlementAt: '2026-09-15T19:12:04.000Z',
+      generatedAt: '2026-09-15T19:15:00.000Z',
+    };
     const { calls } = stubFetch(200, summary);
     assert.deepEqual(await client('boxing').getEventSummary('sr:match:72065192'), summary);
     assert.equal(calls[0].url, 'https://api.example/sos-api/v1/sports/boxing/events/sr%3Amatch%3A72065192/summary/json');
@@ -85,5 +94,20 @@ describe('fixtures through the SDK', () => {
   it('turns any other failure into an error naming the status and the url', async () => {
     stubFetch(500, { error: 'mongo unreachable' });
     await assert.rejects(client('boxing').getFixtures(), { message: /SOS API 500 for https:\/\/api\.example/ });
+  });
+
+  it('follows a configured API base path on every read', async () => {
+    const { calls } = stubFetch(200, { events: [] });
+    const gateway = new SosClient({ accessToken: 'key', amqpHost: 'amqp://unused', apiHost: 'https://api.example', apiBasePath: '/partner/sos', sport: 'boxing' });
+
+    await gateway.getFixtures();
+    await gateway.getFixture('sr:match:1');
+    await gateway.getMarketDescriptions();
+
+    assert.deepEqual(calls.map(c => c.url), [
+      'https://api.example/partner/sos/v1/sports/boxing/events/json',
+      'https://api.example/partner/sos/v1/sports/boxing/events/sr%3Amatch%3A1',
+      'https://api.example/partner/sos/v1/descriptions/markets/json',
+    ]);
   });
 });

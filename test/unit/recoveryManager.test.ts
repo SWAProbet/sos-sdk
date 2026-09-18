@@ -106,4 +106,15 @@ describe('RecoveryManager', () => {
       .filter(c => c.arguments[1]?.method === 'POST');
     assert.equal(posts.length, 1);
   });
+
+  it('requests recovery under a configured API base path', async () => {
+    const { calls } = stubFetch([{ status: 200, body: { requestId: 'req-9', estimatedMessages: 0 } }]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true, '/partner/sos');
+
+    void manager.onReconnect();
+    await settle([2000]);
+
+    assert.ok(calls[0].url.startsWith('https://api.example/partner/sos/recovery/1/initiate_request?after='));
+    assert.ok(calls[1].url.startsWith('https://api.example/partner/sos/recovery/1/status?request_id=req-9'));
+  });
 });

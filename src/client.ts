@@ -39,6 +39,7 @@ export class SosClient extends EventEmitter {
       accessToken: userConfig.accessToken,
       amqpHost: userConfig.amqpHost,
       apiHost: userConfig.apiHost,
+      apiBasePath: userConfig.apiBasePath ?? '/sos-api',
       sport: userConfig.sport ?? DEFAULT_SPORT,
       bindingPatterns:
         userConfig.bindingPatterns || defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),
@@ -57,6 +58,7 @@ export class SosClient extends EventEmitter {
       this.config.accessToken,
       this.config.aliveTimeoutMs,
       this.config.autoRecover,
+      this.config.apiBasePath,
     );
 
     this.wireEvents();
@@ -97,7 +99,7 @@ export class SosClient extends EventEmitter {
    */
   async getMarketDescriptions(): Promise<any> {
     const response = await fetch(
-      `${this.config.apiHost}/sos-api/v1/descriptions/markets/json`,
+      `${this.apiRoot()}/v1/descriptions/markets/json`,
       { headers: { 'X-API-Key': this.config.accessToken } },
     );
     return response.json();
@@ -133,7 +135,11 @@ export class SosClient extends EventEmitter {
   }
 
   private fixturesPath(): string {
-    return `${this.config.apiHost}/sos-api/v1/sports/${this.config.sport}/events`;
+    return `${this.apiRoot()}/v1/sports/${this.config.sport}/events`;
+  }
+
+  private apiRoot(): string {
+    return `${this.config.apiHost}${this.config.apiBasePath}`;
   }
 
   // A 404 is an answer (nothing held), any other failure is an error.
