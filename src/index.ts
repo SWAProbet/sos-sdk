@@ -1,4 +1,4 @@
-export { SosClient } from './client';
+export { SosClient, defaultBindingPatterns } from './client';
 export { parseSosXml, detectMessageType } from './xml/parser';
 
 // Deprecated aliases from the UOF-era naming; prefer the Sos names.

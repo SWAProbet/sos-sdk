@@ -135,7 +135,7 @@ describe('SosClient over the feed', () => {
 
     await client.connect();
     await new Promise<void>(resolve => setImmediate(resolve));
-    assert.deepEqual(broker.channel.bindings.map(b => b[2]), ['boxing.live.#', 'system.live.alive.#']);
+    assert.deepEqual(broker.channel.bindings.map(b => b[2]), ['boxing.live.#', 'system.live.alive.boxing', 'system.live.alive.-']);
     deliver(broker.channel, '<odds_change product="1" event_id="sr:match:1" timestamp="1"><odds/></odds_change>');
     deliver(broker.channel, '<bet_settlement product="1" event_id="sr:match:1" timestamp="2"><outcomes/></bet_settlement>');
     deliver(broker.channel, '<bet_stop product="1" event_id="sr:match:1" timestamp="3"/>');
