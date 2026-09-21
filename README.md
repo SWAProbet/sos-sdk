@@ -64,6 +64,8 @@ await client.connect();
 
 Version 2 changes what `getFixtures` returns. In 1.x it resolved to the response body, an untyped object with the fixtures under `events`; it now resolves to the `Fixture[]` itself, so `(await client.getFixtures()).events` becomes `await client.getFixtures()`. A bare date string is still accepted as the argument. `getFixture` and `getEventSummary` are new, and both resolve to `null` for an event the feed does not hold.
 
+The default bindings also change. In 1.x the client bound `system.live.alive.#`, which on a broker shared across sports let another sport's heartbeat stand in for this feed's. It now binds `system.live.alive.{sport}`, plus `system.live.alive.-` for a server that has not yet moved to the per-sport key. If you pass your own `bindingPatterns`, make the same change; `defaultBindingPatterns(sport)` is exported to build on.
+
 ## API
 
 ### `SosClient`
@@ -80,7 +82,7 @@ new SosClient(config: SosClientConfig)
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
 | `apiBasePath` | `string` | `/sos-api` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
-| `bindingPatterns` | `string[]` | `['mma.live.#', 'system.live.alive.#']` | AMQP routing key patterns |
+| `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
 

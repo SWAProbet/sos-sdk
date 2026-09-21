@@ -21,9 +21,13 @@ import {
 
 const DEFAULT_SPORT: SosSport = 'mma';
 
-// One feed carries one sport, so bind only that sport plus the shared alive stream.
-function defaultBindingPatterns(sport: SosSport): string[] {
-  return [`${sport}.live.#`, 'system.live.alive.#'];
+// What servers published alive on before it was per sport; bound so an older server still
+// reads as alive. Nothing is published on it once every server carries the per-sport key.
+const LEGACY_ALIVE_KEY = 'system.live.alive.-';
+
+// One feed carries one sport, so bind that sport and its own heartbeat, never every sport's.
+export function defaultBindingPatterns(sport: SosSport): string[] {
+  return [`${sport}.live.#`, `system.live.alive.${sport}`, LEGACY_ALIVE_KEY];
 }
 
 export class SosClient extends EventEmitter {
