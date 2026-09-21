@@ -1,7 +1,7 @@
 {
   "name": "@swa-voltron/sos-sdk",
-  "version": "1.0.0",
-  "description": "SWA Odds Service (SOS) client SDK — consumes the live odds feed (UOF-compatible XML over AMQP) for boxing, MMA, tennis, table tennis and volleyball",
+  "version": "2.0.0",
+  "description": "SWA Odds Service (SOS) client SDK \u2014 consumes the live odds feed (UOF-compatible XML over AMQP) for boxing, MMA, tennis, table tennis and volleyball",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
@@ -21,7 +21,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "c8 --check-coverage --lines 80 --all --src src --include 'src/**/*.ts' --exclude 'src/types/index.ts' --reporter text-summary tsx --test --test-timeout=30000 test/unit/*.test.ts"
   },
   "dependencies": {
     "amqplib": "^0.10.4",
@@ -30,6 +31,8 @@
   "devDependencies": {
     "@types/amqplib": "^0.10.5",
     "@types/node": "^22.0.0",
+    "c8": "^10.1.3",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },
   "files": [

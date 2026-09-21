@@ -79,6 +79,8 @@ export interface SosClientConfig {
   accessToken: string;
   amqpHost: string;
   apiHost: string;
+  /** Path the REST API is mounted at behind apiHost. Default: /sos-api. */
+  apiBasePath?: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
   sport?: SosSport;
   /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
@@ -126,3 +128,78 @@ export type SosEventMap = {
   recoveryCompleted: void;
   error: Error;
 };
+
+// --- Fixtures, as /v1/sports/{sport}/events/json answers them ---
+
+export type FixtureStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+
+export type CompetitorGender = 'female' | 'male';
+
+export interface SportUrn {
+  id: string;
+  name: string;
+}
+
+export interface FixtureCompetitor {
+  id: string;
+  name: string;
+  qualifier: 'home' | 'away';
+  /** As SWA holds it; absent where the feed has no value. */
+  gender?: CompetitorGender;
+}
+
+export interface FixtureCard {
+  id: string;
+  name: string | null;
+}
+
+export interface Fixture {
+  /** The event id the feed publishes on odds_change and bet_settlement. */
+  eventId: string;
+  /** SWA's own identifier. Provisional: derived from eventId until SWA assigns it, so stable but not yet authoritative. */
+  sosId: string;
+  imgFightId: string | null;
+  name: string;
+  /** ISO 8601, or null while the feed holds no start time. */
+  scheduledTime: string | null;
+  status: FixtureStatus;
+  competitors: FixtureCompetitor[];
+  sport: SportUrn;
+  card: FixtureCard | null;
+  tournament: SportUrn | null;
+  weightClass: string | null;
+  plannedRounds: number | null;
+  isLiveOdds: boolean;
+  updatedAt: string;
+}
+
+export interface FixtureFilters {
+  /** YYYY-MM-DD, a UTC calendar day. */
+  date?: string;
+  status?: FixtureStatus;
+  isLiveOdds?: boolean;
+}
+
+export interface EventSummaryOutcome {
+  id: string;
+  /** As the feed sent it: 1 won, 0 lost, -1 void. */
+  result: string;
+  voidFactor?: number;
+  deadHeatFactor?: number;
+}
+
+export interface EventSummaryMarket {
+  id: string;
+  specifiers?: string;
+  voidReason?: string;
+  outcomes: EventSummaryOutcome[];
+}
+
+export interface EventSummary {
+  fixture: Fixture;
+  settled: boolean;
+  betStopped: boolean;
+  markets: EventSummaryMarket[];
+  lastSettlementAt: string | null;
+  generatedAt: string;
+}
