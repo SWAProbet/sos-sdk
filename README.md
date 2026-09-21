@@ -60,6 +60,10 @@ client.on('recoveryCompleted', () => {
 await client.connect();
 ```
 
+## Upgrading from 1.x
+
+Version 2 changes what `getFixtures` returns. In 1.x it resolved to the response body, an untyped object with the fixtures under `events`; it now resolves to the `Fixture[]` itself, so `(await client.getFixtures()).events` becomes `await client.getFixtures()`. A bare date string is still accepted as the argument. `getFixture` and `getEventSummary` are new, and both resolve to `null` for an event the feed does not hold.
+
 ## API
 
 ### `SosClient`
