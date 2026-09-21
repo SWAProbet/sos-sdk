@@ -75,7 +75,8 @@ export class RecoveryManager extends EventEmitter {
   onAlive(event: AliveEvent): void {
     this.lastAliveAt = Date.now();
     const feedTime = Number.isFinite(event.timestamp) && event.timestamp > 0 ? event.timestamp : Date.now();
-    this.checkpoints.set(event.productId, feedTime);
+    // A replay carries old alives too; one of those must not move the checkpoint back.
+    this.checkpoints.set(event.productId, Math.max(feedTime, this.checkpoints.get(event.productId) ?? 0));
   }
 
   /**

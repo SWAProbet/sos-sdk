@@ -204,4 +204,17 @@ describe('RecoveryManager', () => {
     assert.ok(calls[3].url.includes(`after=${iso(1_790_000_125_000)}`), 'once paid, the next recovery starts from the latest alive');
     manager.stopMonitoring();
   });
+
+  it('does not let an old alive, as a replay carries, move the checkpoint back', async () => {
+    const { calls } = stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } }]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    manager.onAlive({ productId: 1, timestamp: 1_790_000_050_000, subscribed: true });
+    manager.onAlive({ productId: 1, timestamp: 1_790_000_010_000, subscribed: true });
+
+    const recovery = manager.onReconnect();
+    await settle([2_000]);
+    await recovery;
+
+    assert.ok(calls[0].url.includes(`after=${iso(1_790_000_050_000)}`));
+  });
 });
