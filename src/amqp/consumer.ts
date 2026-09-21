@@ -14,6 +14,11 @@ export class AmqpConsumer extends EventEmitter {
     super();
   }
 
+  // The broker's name for this connection's queue, null until started.
+  get queue(): string | null {
+    return this.queueName;
+  }
+
   /**
    * Set up the queue and start consuming messages.
    */

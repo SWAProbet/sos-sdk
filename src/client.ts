@@ -31,6 +31,7 @@ export class SosClient extends EventEmitter {
   private consumer: AmqpConsumer;
   private recoveryManager: RecoveryManager;
   private config: Required<SosClientConfig>;
+  private hasConnected = false;
 
   constructor(userConfig: SosClientConfig) {
     super();
@@ -156,8 +157,13 @@ export class SosClient extends EventEmitter {
       console.log('[SosSDK] AMQP connected');
       try {
         await this.consumer.start();
+        this.recoveryManager.setConsumerQueue(this.consumer.queue);
         this.recoveryManager.startMonitoring();
+        const isReconnect = this.hasConnected;
+        this.hasConnected = true;
         this.emit('connected');
+        // The first connect has nothing to replay; every later one has the outage.
+        if (isReconnect) void this.recoveryManager.onReconnect();
       } catch (err: any) {
         console.error('[SosSDK] Failed to start consumer:', err);
         this.emit('error', err);

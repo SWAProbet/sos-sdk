@@ -107,6 +107,10 @@ new SosClient(config: SosClientConfig)
 | `recoveryCompleted` | `void` | Recovery finished |
 | `error` | `Error` | Error occurred |
 
+## Recovery
+
+With `autoRecover` on, the client asks the server to replay what it missed in two cases: when no alive has arrived for `aliveTimeoutMs`, and when the connection comes back after a drop. The first connect asks for nothing. A replay starts from the last alive heard before the gap, using the feed's own timestamp on that alive, and is requested once for each producer the client has heard from. The request names the queue the connection consumes from as `consumer_queue`. If a recovery fails, its starting point is kept and it is tried again after `aliveTimeoutMs`, so alives arriving in the meantime cannot shrink what is replayed. `recoveryStarted` and `recoveryCompleted` fire once for the whole recovery, and `estimatedMessages` counts every producer.
+
 ## Types
 
 All types are exported from the package:
