@@ -166,7 +166,7 @@ describe('SosClient over the feed', () => {
     const calls: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string) => { calls.push(url); return new Response(JSON.stringify({ markets: [] })); });
     assert.deepEqual(await client.getMarketDescriptions(), { markets: [] });
-    assert.deepEqual(calls, ['https://api.example/sos-api/v1/descriptions/markets/json']);
+    assert.deepEqual(calls, ['https://api.example/sos/v1/descriptions/markets/json']);
     await client.disconnect();
   });
 });

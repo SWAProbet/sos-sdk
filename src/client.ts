@@ -44,7 +44,7 @@ export class SosClient extends EventEmitter {
       accessToken: userConfig.accessToken,
       amqpHost: userConfig.amqpHost,
       apiHost: userConfig.apiHost,
-      apiBasePath: userConfig.apiBasePath ?? '/sos-api',
+      apiBasePath: userConfig.apiBasePath ?? '/sos',
       sport: userConfig.sport ?? DEFAULT_SPORT,
       bindingPatterns:
         userConfig.bindingPatterns || defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),

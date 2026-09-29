@@ -79,7 +79,7 @@ export interface SosClientConfig {
   accessToken: string;
   amqpHost: string;
   apiHost: string;
-  /** Path the REST API is mounted at behind apiHost. Default: /sos-api. */
+  /** Path the REST API is mounted at behind apiHost. Default: /sos. */
   apiBasePath?: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
   sport?: SosSport;

@@ -78,8 +78,8 @@ describe('recovery after a reconnect', () => {
     assert.deepEqual(callsOnFirstConnect, [], 'the first connect has nothing to recover');
     const after = encodeURIComponent(new Date(LAST_ALIVE).toISOString());
     assert.deepEqual(calls, [
-      `POST https://api.example/sos-api/recovery/1/initiate_request?after=${after}&consumer_queue=amq.gen-second`,
-      'GET https://api.example/sos-api/recovery/1/status?request_id=req-1',
+      `POST https://api.example/sos/recovery/1/initiate_request?after=${after}&consumer_queue=amq.gen-second`,
+      'GET https://api.example/sos/recovery/1/status?request_id=req-1',
     ]);
     assert.deepEqual(seen, ['started 2', 'completed']);
     await client.disconnect();

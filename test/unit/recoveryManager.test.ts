@@ -57,7 +57,7 @@ describe('RecoveryManager', () => {
     await settle([35_000, 2_000, 2_000, 2_000]);
 
     assert.equal(calls[0].method, 'POST');
-    assert.ok(calls[0].url.startsWith('https://api.example/sos-api/recovery/1/initiate_request?after='));
+    assert.ok(calls[0].url.startsWith('https://api.example/sos/recovery/1/initiate_request?after='));
     assert.equal(calls.length, 4);
     assert.deepEqual(events, ['started:3', 'completed']);
     manager.stopMonitoring();
@@ -137,10 +137,10 @@ describe('RecoveryManager', () => {
     await recovery;
 
     assert.deepEqual(calls.map(c => c.url), [
-      `https://api.example/sos-api/recovery/1/initiate_request?after=${iso(1_790_000_000_000)}&consumer_queue=amq.gen-7`,
-      `https://api.example/sos-api/recovery/3/initiate_request?after=${iso(1_790_000_007_000)}&consumer_queue=amq.gen-7`,
-      'https://api.example/sos-api/recovery/1/status?request_id=live',
-      'https://api.example/sos-api/recovery/3/status?request_id=pre',
+      `https://api.example/sos/recovery/1/initiate_request?after=${iso(1_790_000_000_000)}&consumer_queue=amq.gen-7`,
+      `https://api.example/sos/recovery/3/initiate_request?after=${iso(1_790_000_007_000)}&consumer_queue=amq.gen-7`,
+      'https://api.example/sos/recovery/1/status?request_id=live',
+      'https://api.example/sos/recovery/3/status?request_id=pre',
     ]);
     assert.deepEqual(started, [5], 'one start for the whole recovery, counting every producer');
   });
@@ -162,7 +162,7 @@ describe('RecoveryManager', () => {
     const first = unheard.onReconnect();
     await settle([2_000]);
     await first;
-    assert.equal(calls[0].url, `https://api.example/sos-api/recovery/1/initiate_request?after=${iso(connectedAt + 9_000)}`);
+    assert.equal(calls[0].url, `https://api.example/sos/recovery/1/initiate_request?after=${iso(connectedAt + 9_000)}`);
 
     const second = manager.onReconnect();
     await settle([2_000]);

@@ -47,7 +47,7 @@ describe('fixtures through the SDK', () => {
 
     const fixtures = await client('boxing').getFixtures({ date: '2026-09-15', status: 'SCHEDULED', isLiveOdds: true });
 
-    assert.equal(calls[0].url, 'https://api.example/sos-api/v1/sports/boxing/events/json?date=2026-09-15&status=SCHEDULED&is_liveodds=true');
+    assert.equal(calls[0].url, 'https://api.example/sos/v1/sports/boxing/events/json?date=2026-09-15&status=SCHEDULED&is_liveodds=true');
     assert.equal(calls[0].headers['X-API-Key'], 'key');
     assert.deepEqual(fixtures, [FIXTURE]);
     assert.equal(fixtures[0].competitors[0].gender, 'female');
@@ -58,15 +58,15 @@ describe('fixtures through the SDK', () => {
   it('still takes a bare date, as the old signature did, and defaults the sport to mma', async () => {
     const { calls } = stubFetch(200, { events: [] });
     assert.deepEqual(await client().getFixtures('2026-09-01'), []);
-    assert.equal(calls[0].url, 'https://api.example/sos-api/v1/sports/mma/events/json?date=2026-09-01');
+    assert.equal(calls[0].url, 'https://api.example/sos/v1/sports/mma/events/json?date=2026-09-01');
     await client().getFixtures();
-    assert.equal(calls[1].url, 'https://api.example/sos-api/v1/sports/mma/events/json');
+    assert.equal(calls[1].url, 'https://api.example/sos/v1/sports/mma/events/json');
   });
 
   it('reads one fixture, escaping the id in the path, and answers null for one the feed does not hold', async () => {
     const found = stubFetch(200, FIXTURE);
     assert.deepEqual(await client('boxing').getFixture('sr:match:72065192'), FIXTURE);
-    assert.equal(found.calls[0].url, 'https://api.example/sos-api/v1/sports/boxing/events/sr%3Amatch%3A72065192');
+    assert.equal(found.calls[0].url, 'https://api.example/sos/v1/sports/boxing/events/sr%3Amatch%3A72065192');
     mock.restoreAll();
 
     stubFetch(404, { error: 'Event not found' });
@@ -84,7 +84,7 @@ describe('fixtures through the SDK', () => {
     };
     const { calls } = stubFetch(200, summary);
     assert.deepEqual(await client('boxing').getEventSummary('sr:match:72065192'), summary);
-    assert.equal(calls[0].url, 'https://api.example/sos-api/v1/sports/boxing/events/sr%3Amatch%3A72065192/summary/json');
+    assert.equal(calls[0].url, 'https://api.example/sos/v1/sports/boxing/events/sr%3Amatch%3A72065192/summary/json');
     mock.restoreAll();
 
     stubFetch(404, { error: 'Event not found' });

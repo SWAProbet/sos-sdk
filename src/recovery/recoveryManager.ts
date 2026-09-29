@@ -28,7 +28,7 @@ export class RecoveryManager extends EventEmitter {
     private accessToken: string,
     private aliveTimeoutMs: number,
     private autoRecover: boolean,
-    private apiBasePath: string = '/sos-api',
+    private apiBasePath: string = '/sos',
   ) {
     super();
   }

@@ -15,11 +15,12 @@ npm install @swa-voltron/sos-sdk
 ```typescript
 import { SosClient } from '@swa-voltron/sos-sdk';
 
+// apiKey, amqpUsername and amqpPassword come back once, when your partner account is registered.
 const client = new SosClient({
   accessToken: 'your-api-key',
   sport: 'tennis',
-  amqpHost: 'amqp://feed.swa.com',
-  apiHost: 'https://feed-api.swa.com',
+  amqpHost: 'amqps://<amqpUsername>:<amqpPassword>@<broker-host>:5671',
+  apiHost: 'https://<api-host>',
 });
 
 client.on('oddsChange', (event) => {
@@ -81,7 +82,7 @@ new SosClient(config: SosClientConfig)
 | `accessToken` | `string` | required | Partner API key |
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
-| `apiBasePath` | `string` | `/sos-api` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
+| `apiBasePath` | `string` | `/sos` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
 | `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
