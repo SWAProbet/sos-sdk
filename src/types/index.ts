@@ -67,6 +67,33 @@ export interface BetStopEvent {
   groups: string;
 }
 
+export interface FixtureChangeEvent {
+  productId: number;
+  eventId: string;
+  timestamp: number;
+  startTime?: number;
+}
+
+export interface SnapshotCompleteEvent {
+  productId: number;
+  requestId: string;
+  timestamp: number;
+}
+
+export interface BetCancelEvent {
+  productId: number;
+  eventId: string;
+  timestamp: number;
+  startTime?: number;
+  endTime?: number;
+  markets: BetCancelMarket[];
+}
+
+export interface BetCancelMarket {
+  id: number;
+  voidReason?: number;
+}
+
 export interface AliveEvent {
   productId: number;
   timestamp: number;
@@ -89,6 +116,9 @@ export type SwaUofEventMap = {
   oddsChange: OddsChangeEvent;
   betSettlement: BetSettlementEvent;
   betStop: BetStopEvent;
+  fixtureChange: FixtureChangeEvent;
+  snapshotComplete: SnapshotCompleteEvent;
+  betCancel: BetCancelEvent;
   alive: AliveEvent;
   connected: void;
   disconnected: void;
