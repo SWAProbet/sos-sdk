@@ -67,6 +67,11 @@ export interface BetStopEvent {
   groups: string;
 }
 
+export interface ProducerStateEvent {
+  productId: number;
+  timestamp: number;
+}
+
 export interface AliveEvent {
   productId: number;
   timestamp: number;
@@ -126,6 +131,10 @@ export type SosEventMap = {
   disconnected: void;
   recoveryStarted: { estimatedMessages: number };
   recoveryCompleted: void;
+  /** A producer's alives say subscribed="0": suspend its markets until producerUp. */
+  producerDown: ProducerStateEvent;
+  /** The producer is back; a recovery from before the outage has been started. */
+  producerUp: ProducerStateEvent;
   error: Error;
 };
 

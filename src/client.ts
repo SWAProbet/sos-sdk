@@ -194,6 +194,14 @@ export class SosClient extends EventEmitter {
       this.emit('recoveryCompleted');
     });
 
+    this.recoveryManager.on('producerDown', (data) => {
+      this.emit('producerDown', data);
+    });
+
+    this.recoveryManager.on('producerUp', (data) => {
+      this.emit('producerUp', data);
+    });
+
     this.recoveryManager.on('error', (err) => {
       this.emit('error', err);
     });

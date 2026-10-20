@@ -17,6 +17,7 @@ export {
   FixtureChangeEvent,
   SnapshotCompleteEvent,
   AliveEvent,
+  ProducerStateEvent,
   SosClientConfig,
   SosEventMap,
   Market,

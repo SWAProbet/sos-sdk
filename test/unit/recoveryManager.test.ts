@@ -217,4 +217,64 @@ describe('RecoveryManager', () => {
 
     assert.ok(calls[0].url.includes(`after=${iso(1_790_000_050_000)}`));
   });
+
+  it('reports a producer down on subscribed="0" and recovers from before the outage once it is back', async () => {
+    const { calls } = stubFetch([
+      { status: 200, body: { requestId: 'req-1', estimatedMessages: 2 } },
+      { status: 200, body: { status: 'completed' } },
+    ]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    const events: string[] = [];
+    manager.on('producerDown', e => events.push(`down:${e.productId}`));
+    manager.on('producerUp', e => events.push(`up:${e.productId}`));
+    manager.on('recoveryCompleted', () => events.push('completed'));
+
+    manager.onAlive({ productId: 1, timestamp: 1_000, subscribed: true });
+    manager.onAlive({ productId: 1, timestamp: 11_000, subscribed: false });
+    manager.onAlive({ productId: 1, timestamp: 21_000, subscribed: false });
+    assert.deepEqual(manager.producersDown, [1]);
+    assert.deepEqual(calls, [], 'no recovery while the producer is still down');
+
+    manager.onAlive({ productId: 1, timestamp: 31_000, subscribed: true });
+    await settle([2_000]);
+
+    assert.deepEqual(events, ['down:1', 'up:1', 'completed']);
+    assert.deepEqual(manager.producersDown, []);
+    assert.ok(calls[0].url.includes(`after=${encodeURIComponent(new Date(1_000).toISOString())}`), 'from the last subscribed alive');
+  });
+
+  it('ignores the outage alives a replay carries', async () => {
+    stubFetch([]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    const events: string[] = [];
+    manager.on('producerDown', () => events.push('down'));
+    manager.onAlive({ productId: 1, timestamp: 50_000, subscribed: true });
+    manager.onAlive({ productId: 1, timestamp: 20_000, subscribed: false });
+    assert.deepEqual(events, []);
+    assert.deepEqual(manager.producersDown, []);
+  });
+
+  it('keeps the silence timer quiet while unsubscribed alives keep arriving', async () => {
+    const { calls } = stubFetch([]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    manager.startMonitoring();
+    for (let t = 1; t <= 6; t++) {
+      manager.onAlive({ productId: 1, timestamp: t * 10_000, subscribed: false });
+      await settle([10_000]);
+    }
+    assert.deepEqual(calls, [], 'the line is open; producerDown carries the outage');
+    manager.stopMonitoring();
+  });
+
+  it('reports the producer back without recovering when auto recovery is off', async () => {
+    const { calls } = stubFetch([]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, false);
+    const events: string[] = [];
+    manager.on('producerUp', () => events.push('up'));
+    manager.onAlive({ productId: 3, timestamp: 1_000, subscribed: false });
+    manager.onAlive({ productId: 3, timestamp: 2_000, subscribed: true });
+    await settle([2_000]);
+    assert.deepEqual(events, ['up']);
+    assert.deepEqual(calls, []);
+  });
 });

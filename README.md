@@ -108,11 +108,15 @@ new SosClient(config: SosClientConfig)
 | `disconnected` | `void` | AMQP disconnected |
 | `recoveryStarted` | `{ estimatedMessages }` | Recovery initiated |
 | `recoveryCompleted` | `void` | Recovery finished |
+| `producerDown` | `ProducerStateEvent` | The producer's alives say `subscribed="0"`: the server lost its upstream, so suspend that producer's markets |
+| `producerUp` | `ProducerStateEvent` | The producer is back; with `autoRecover` a replay from before the outage has started |
 | `error` | `Error` | Error occurred |
 
 ## Recovery
 
 With `autoRecover` on, the client asks the server to replay what it missed in two cases: when no alive has arrived for `aliveTimeoutMs`, and when the connection comes back after a drop. The first connect asks for nothing. A replay starts from the last alive heard before the gap, using the feed's own timestamp on that alive, and is requested once for each producer the client has heard from. The request names the queue the connection consumes from as `consumer_queue`. If a recovery fails, its starting point is kept and it is tried again after `aliveTimeoutMs`, so alives arriving in the meantime cannot shrink what is replayed. `recoveryStarted` and `recoveryCompleted` fire once for the whole recovery, and `estimatedMessages` counts every producer.
+
+An alive with `subscribed="0"` means the line to the server is open but the producer has lost its upstream, so its prices are stale. The client emits `producerDown` once, keeps that producer's checkpoint at its last subscribed alive, and does not count those alives as silence. When an alive says `subscribed="1"` again it emits `producerUp` and, with `autoRecover` on, replays from that checkpoint. Old alives arriving in a replay never change this state.
 
 ## Types
 

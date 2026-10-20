@@ -22,6 +22,8 @@ export class RecoveryManager extends EventEmitter {
   private consumerQueue: string | null = null;
   private monitorTimer: NodeJS.Timeout | null = null;
   private isRecovering = false;
+  // Producers whose alives say subscribed="0": the server has lost its upstream.
+  private down = new Set<number>();
 
   constructor(
     private apiHost: string,
@@ -75,8 +77,36 @@ export class RecoveryManager extends EventEmitter {
   onAlive(event: AliveEvent): void {
     this.lastAliveAt = Date.now();
     const feedTime = Number.isFinite(event.timestamp) && event.timestamp > 0 ? event.timestamp : Date.now();
-    // A replay carries old alives too; one of those must not move the checkpoint back.
-    this.checkpoints.set(event.productId, Math.max(feedTime, this.checkpoints.get(event.productId) ?? 0));
+    const checkpoint = this.checkpoints.get(event.productId) ?? 0;
+    // A replay carries old alives too; one of those must not move the checkpoint back or
+    // replay an outage that is already over.
+    if (feedTime < checkpoint) return;
+
+    if (!event.subscribed) {
+      // The line is open but the producer has no upstream: its prices are stale. The checkpoint
+      // stays at the last subscribed alive, which is where the replay must start once it is back.
+      if (!this.down.has(event.productId)) {
+        this.down.add(event.productId);
+        console.warn(`[SosSDK:Recovery] Producer ${event.productId} is down`);
+        this.emit('producerDown', { productId: event.productId, timestamp: feedTime });
+      }
+      return;
+    }
+
+    const wasDown = this.down.delete(event.productId);
+    // Taken before this alive moves the checkpoint, so the replay covers the outage.
+    if (wasDown && this.autoRecover) this.owed ??= this.recoveryPoints();
+    this.checkpoints.set(event.productId, feedTime);
+    if (wasDown) {
+      console.warn(`[SosSDK:Recovery] Producer ${event.productId} is back, recovering`);
+      this.emit('producerUp', { productId: event.productId, timestamp: feedTime });
+      if (this.autoRecover) void this.triggerRecovery();
+    }
+  }
+
+  /** Producers currently reporting subscribed="0". */
+  get producersDown(): number[] {
+    return [...this.down].sort((a, b) => a - b);
   }
 
   /**
