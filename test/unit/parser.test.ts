@@ -58,6 +58,10 @@ describe('parseSosXml', () => {
     assert.deepEqual(parseSosXml('<bet_stop product="1" event_id="sr:match:1" timestamp="3"><groups>all</groups></bet_stop>'), {
       productId: 1, eventId: 'sr:match:1', timestamp: 3, groups: 'all',
     });
+    // What sos-server sends: groups and market_status as attributes.
+    assert.deepEqual(parseSosXml('<bet_stop groups="set_1" market_status="-1" product="1" event_id="sr:match:1" timestamp="3"/>'), {
+      productId: 1, eventId: 'sr:match:1', timestamp: 3, groups: 'set_1', marketStatus: -1,
+    });
     const cancel = parseSosXml('<bet_cancel product="1" event_id="sr:match:1" timestamp="4" start_time="1" end_time="2"><market id="186" void_reason="x"/><market id="911"/></bet_cancel>') as BetCancelEvent;
     assert.deepEqual(cancel.markets, [{ id: 186, voidReason: 'x' }, { id: 911, voidReason: undefined }]);
     assert.equal(cancel.startTime, 1);

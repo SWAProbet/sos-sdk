@@ -103,6 +103,9 @@ new SosClient(config: SosClientConfig)
 | `oddsChange` | `OddsChangeEvent` | Odds update |
 | `betSettlement` | `BetSettlementEvent` | Market settlement |
 | `betStop` | `BetStopEvent` | Market suspension |
+| `betCancel` | `BetCancelEvent` | Markets voided |
+| `fixtureChange` | `FixtureChangeEvent` | Fixture changed; refetch it over REST |
+| `snapshotComplete` | `SnapshotCompleteEvent` | End of one recovery replay |
 | `alive` | `AliveEvent` | Producer heartbeat |
 | `connected` | `void` | AMQP connected |
 | `disconnected` | `void` | AMQP disconnected |
@@ -110,9 +113,13 @@ new SosClient(config: SosClientConfig)
 | `recoveryCompleted` | `void` | Recovery finished |
 | `error` | `Error` | Error occurred |
 
+Every feed event carries `meta`: the AMQP `messageId`, the `routingKey` the message was published on and `replayed`. A replay is delivered straight to your queue, so its delivery routing key is the queue name; `meta.routingKey` is the original key, taken from the `x-sos-routing-key` header the server sets. A replayed message keeps the `messageId` it was first delivered with, so drop any `messageId` you have already applied.
+
 ## Recovery
 
 With `autoRecover` on, the client asks the server to replay what it missed in two cases: when no alive has arrived for `aliveTimeoutMs`, and when the connection comes back after a drop. The first connect asks for nothing. A replay starts from the last alive heard before the gap, using the feed's own timestamp on that alive, and is requested once for each producer the client has heard from. The request names the queue the connection consumes from as `consumer_queue`. If a recovery fails, its starting point is kept and it is tried again after `aliveTimeoutMs`, so alives arriving in the meantime cannot shrink what is replayed. `recoveryStarted` and `recoveryCompleted` fire once for the whole recovery, and `estimatedMessages` counts every producer.
+
+A replay ends with a `snapshot_complete` carrying the request id, delivered into the same queue after every replayed message. The client completes a request when that message arrives, and polls `GET /recovery/{producer}/status` alongside it to learn of a failure; a `failed` status raises an `error` with the server's reason. If the server reports `completed` and the `snapshot_complete` has not arrived ten seconds later, the client completes anyway and logs a warning.
 
 ## Types
 
@@ -124,6 +131,8 @@ import type {
   BetSettlementEvent,
   BetStopEvent,
   AliveEvent,
+  MessageMeta,
+  SosSport,
   Market,
   Outcome,
   SettlementMarket,

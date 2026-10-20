@@ -1,6 +1,17 @@
 // Parsed UOF message types exposed to SDK consumers
 
+/** How a message reached this client. Set on every feed event the client emits. */
+export interface MessageMeta {
+  /** The AMQP messageId. A replayed message carries the id it was first delivered with. */
+  messageId?: string;
+  /** The key the message was published on. For a replay, the original key, not the queue name. */
+  routingKey: string;
+  /** True when the message came from a recovery replay. */
+  replayed: boolean;
+}
+
 export interface OddsChangeEvent {
+  meta?: MessageMeta;
   productId: number;
   eventId: string;
   timestamp: number;
@@ -39,6 +50,7 @@ export interface Outcome {
 }
 
 export interface BetSettlementEvent {
+  meta?: MessageMeta;
   productId: number;
   eventId: string;
   timestamp: number;
@@ -61,13 +73,17 @@ export interface SettlementOutcome {
 }
 
 export interface BetStopEvent {
+  meta?: MessageMeta;
   productId: number;
   eventId: string;
   timestamp: number;
   groups: string;
+  /** Status the stopped markets move to: -1 suspended, 0 deactivated. */
+  marketStatus?: number;
 }
 
 export interface AliveEvent {
+  meta?: MessageMeta;
   productId: number;
   timestamp: number;
   subscribed: boolean;
@@ -92,6 +108,7 @@ export interface SosClientConfig {
 }
 
 export interface FixtureChangeEvent {
+  meta?: MessageMeta;
   productId: number;
   eventId: string;
   timestamp: number;
@@ -100,6 +117,7 @@ export interface FixtureChangeEvent {
 }
 
 export interface BetCancelEvent {
+  meta?: MessageMeta;
   productId: number;
   eventId: string;
   timestamp: number;
@@ -109,6 +127,7 @@ export interface BetCancelEvent {
 }
 
 export interface SnapshotCompleteEvent {
+  meta?: MessageMeta;
   productId: number;
   requestId: string;
   timestamp: number;

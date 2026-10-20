@@ -17,9 +17,13 @@ import {
   FixtureChangeEvent,
   SnapshotCompleteEvent,
   AliveEvent,
+  MessageMeta,
 } from './types';
 
 const DEFAULT_SPORT: SosSport = 'mma';
+
+// The header a replayed message carries its original routing key in.
+const REPLAY_ROUTING_KEY_HEADER = 'x-sos-routing-key';
 
 // What servers published alive on before it was per sport; bound so an older server still
 // reads as alive. Nothing is published on it once every server carries the per-sport key.
@@ -181,8 +185,18 @@ export class SosClient extends EventEmitter {
     });
 
     // AMQP message handling
-    this.consumer.on('message', ({ xml }: { xml: string; routingKey: string }) => {
-      this.handleMessage(xml);
+    this.consumer.on('message', ({ xml, routingKey, headers, messageId }: {
+      xml: string; routingKey: string; headers?: Record<string, unknown>; messageId?: string;
+    }) => {
+      // A replay comes through the default exchange, so its routing key is the queue name;
+      // the server puts the key it was first published on in this header.
+      const original = headers?.[REPLAY_ROUTING_KEY_HEADER];
+      const meta: MessageMeta = {
+        ...(messageId ? { messageId } : {}),
+        routingKey: typeof original === 'string' ? original : routingKey,
+        replayed: typeof original === 'string',
+      };
+      this.handleMessage(xml, meta);
     });
 
     // Recovery events
@@ -199,11 +213,12 @@ export class SosClient extends EventEmitter {
     });
   }
 
-  private handleMessage(xml: string): void {
+  private handleMessage(xml: string, meta?: MessageMeta): void {
     try {
       const msgType = detectMessageType(xml);
-      const parsed = parseSosXml(xml);
-      if (!parsed) return;
+      const raw = parseSosXml(xml);
+      if (!raw) return;
+      const parsed = meta ? { ...raw, meta } : raw;
 
       switch (msgType) {
         case 'odds_change':
@@ -222,6 +237,7 @@ export class SosClient extends EventEmitter {
           this.emit('fixtureChange', parsed as FixtureChangeEvent);
           break;
         case 'snapshot_complete':
+          this.recoveryManager.onSnapshotComplete((parsed as SnapshotCompleteEvent).requestId);
           this.emit('snapshotComplete', parsed as SnapshotCompleteEvent);
           break;
         case 'alive':

@@ -22,6 +22,8 @@ export class RecoveryManager extends EventEmitter {
   private consumerQueue: string | null = null;
   private monitorTimer: NodeJS.Timeout | null = null;
   private isRecovering = false;
+  // Request ids whose snapshot_complete has arrived on this connection's queue.
+  private snapshotsSeen = new Set<string>();
 
   constructor(
     private apiHost: string,
@@ -77,6 +79,14 @@ export class RecoveryManager extends EventEmitter {
     const feedTime = Number.isFinite(event.timestamp) && event.timestamp > 0 ? event.timestamp : Date.now();
     // A replay carries old alives too; one of those must not move the checkpoint back.
     this.checkpoints.set(event.productId, Math.max(feedTime, this.checkpoints.get(event.productId) ?? 0));
+  }
+
+  /**
+   * Called when a snapshot_complete arrives. Everything replayed for that request is ahead of it
+   * in the queue, so it is the point at which the replay has been delivered to this client.
+   */
+  onSnapshotComplete(requestId: string): void {
+    this.snapshotsSeen.add(String(requestId));
   }
 
   /**
@@ -143,12 +153,28 @@ export class RecoveryManager extends EventEmitter {
     return { producerId, requestId: result.requestId, estimatedMessages: result.estimatedMessages };
   }
 
+  /**
+   * A replay is complete when its snapshot_complete has reached this client. The status endpoint
+   * is polled alongside it to learn of a failure, and stands in if the server reports completion
+   * but the snapshot_complete never arrives.
+   */
   private async pollRecoveryStatus(request: RecoveryRequest): Promise<void> {
     const maxAttempts = 60;
+    const graceAfterServerCompleted = 5;
+    let completedOnServerAt: number | null = null;
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise(r => setTimeout(r, 2000));
 
-      let status: { status: string };
+      if (this.snapshotsSeen.delete(request.requestId)) return;
+      if (completedOnServerAt !== null) {
+        if (i - completedOnServerAt >= graceAfterServerCompleted) {
+          console.warn(`[SosSDK:Recovery] ${request.requestId} completed on the server but its snapshot_complete never arrived`);
+          return;
+        }
+        continue;
+      }
+
+      let status: { status: string; error?: string };
       try {
         const url = `${this.apiHost}${this.apiBasePath}/recovery/${request.producerId}/status?request_id=${encodeURIComponent(request.requestId)}`;
         const response = await fetch(url, {
@@ -156,13 +182,18 @@ export class RecoveryManager extends EventEmitter {
         });
 
         if (!response.ok) continue;
-        status = await response.json() as { status: string };
+        status = await response.json() as { status: string; error?: string };
       } catch {
         continue;
       }
 
-      if (status.status === 'completed') return;
-      if (status.status === 'failed') throw new Error('Recovery failed on server');
+      if (status.status === 'failed') {
+        throw new Error(status.error ? `Recovery failed on server: ${status.error}` : 'Recovery failed on server');
+      }
+      if (status.status === 'completed') {
+        if (this.snapshotsSeen.delete(request.requestId)) return;
+        completedOnServerAt = i;
+      }
     }
 
     throw new Error('Recovery polling timed out');

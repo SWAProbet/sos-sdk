@@ -97,7 +97,7 @@ describe('AmqpConsumer', () => {
     assert.deepEqual(channel.bindings, [['amq.gen-1', 'swa.sos', 'boxing.live.#'], ['amq.gen-1', 'swa.sos', 'system.live.alive.#']]);
     deliver(channel, '<alive product="1" timestamp="1" subscribed="1"/>', 'system.live.alive.-');
     channel.handler?.(null);
-    assert.deepEqual(messages, [{ xml: '<alive product="1" timestamp="1" subscribed="1"/>', routingKey: 'system.live.alive.-', headers: {} }]);
+    assert.deepEqual(messages, [{ xml: '<alive product="1" timestamp="1" subscribed="1"/>', routingKey: 'system.live.alive.-', headers: {}, messageId: undefined }]);
     assert.equal(channel.acked, 1);
 
     await consumer.stop();
@@ -167,6 +167,30 @@ describe('SosClient over the feed', () => {
     mock.method(globalThis, 'fetch', async (url: string) => { calls.push(url); return new Response(JSON.stringify({ markets: [] })); });
     assert.deepEqual(await client.getMarketDescriptions(), { markets: [] });
     assert.deepEqual(calls, ['https://api.example/sos/v1/descriptions/markets/json']);
+    await client.disconnect();
+  });
+
+  it('tells a live message from a replayed one', async () => {
+    const broker = fakeBroker();
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    const client = new SosClient({ accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing' });
+    const metas: unknown[] = [];
+    client.on('oddsChange', event => metas.push(event.meta));
+    await client.connect();
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const xml = '<odds_change product="1" event_id="sr:match:1" timestamp="1"><odds/></odds_change>';
+    broker.channel.handler?.({ content: Buffer.from(xml), fields: { routingKey: 'boxing.live.odds_change.sr:match:1' }, properties: { messageId: 'm-1', headers: {} } });
+    broker.channel.handler?.({
+      content: Buffer.from(xml),
+      fields: { routingKey: 'amq.gen-1' },
+      properties: { messageId: 'm-1', headers: { 'x-sos-routing-key': 'boxing.live.odds_change.sr:match:1' } },
+    });
+
+    assert.deepEqual(metas, [
+      { messageId: 'm-1', routingKey: 'boxing.live.odds_change.sr:match:1', replayed: false },
+      { messageId: 'm-1', routingKey: 'boxing.live.odds_change.sr:match:1', replayed: true },
+    ]);
     await client.disconnect();
   });
 });

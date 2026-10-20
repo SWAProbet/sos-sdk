@@ -130,7 +130,9 @@ function parseBetStop(stop: any): BetStopEvent {
     productId: Number(stop['@_product']),
     eventId: String(stop['@_event_id']),
     timestamp: Number(stop['@_timestamp']),
-    groups: String(stop.groups || 'all'),
+    // The server sends groups and market_status as attributes; older payloads used a child element.
+    groups: String(stop['@_groups'] ?? stop.groups ?? 'all'),
+    ...(stop['@_market_status'] != null ? { marketStatus: Number(stop['@_market_status']) } : {}),
   };
 }
 

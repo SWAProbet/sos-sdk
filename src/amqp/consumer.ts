@@ -47,8 +47,9 @@ export class AmqpConsumer extends EventEmitter {
         const xml = msg.content.toString('utf-8');
         const routingKey = msg.fields.routingKey;
         const headers = msg.properties.headers || {};
+        const messageId = msg.properties.messageId as string | undefined;
 
-        this.emit('message', { xml, routingKey, headers });
+        this.emit('message', { xml, routingKey, headers, messageId });
         channel.ack(msg);
       },
       { noAck: false },

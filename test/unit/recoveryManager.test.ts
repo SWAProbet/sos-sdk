@@ -4,11 +4,22 @@ import { RecoveryManager } from '../../src/recovery/recoveryManager';
 
 type Reply = { status: number; body: unknown };
 
+// The server sends snapshot_complete before it reports a request completed, so by the time a
+// status poll says completed the consumer has normally seen it. Managers listed here get it then.
+let receivers: RecoveryManager[] = [];
+function deliverSnapshots(...managers: RecoveryManager[]): void {
+  receivers = managers;
+}
+
 function stubFetch(replies: Reply[]): { calls: { url: string; method: string }[] } {
   const calls: { url: string; method: string }[] = [];
   mock.method(globalThis, 'fetch', async (url: string, init?: { method?: string }) => {
     calls.push({ url, method: init?.method ?? 'GET' });
     const reply = replies.shift() ?? { status: 200, body: { status: 'completed' } };
+    const requestId = new URL(url).searchParams.get('request_id');
+    if (requestId && (reply.body as { status?: string }).status === 'completed') {
+      for (const manager of receivers) manager.onSnapshotComplete(requestId);
+    }
     return new Response(JSON.stringify(reply.body), { status: reply.status, statusText: 'x' });
   });
   return { calls };
@@ -33,6 +44,7 @@ describe('RecoveryManager', () => {
   afterEach(() => {
     mock.timers.reset();
     mock.restoreAll();
+    receivers = [];
   });
 
   it('recovers after the alive timeout, polls to completion, and monitors once', async () => {
@@ -43,6 +55,7 @@ describe('RecoveryManager', () => {
       { status: 200, body: { status: 'completed' } },
     ]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager);
     const events: string[] = [];
     manager.on('recoveryStarted', data => events.push(`started:${data.estimatedMessages}`));
     manager.on('recoveryCompleted', () => events.push('completed'));
@@ -67,6 +80,7 @@ describe('RecoveryManager', () => {
   it('reports a failed recovery, a refused request, and a poll that never completes', async () => {
     const errors: string[] = [];
     const failed = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(failed);
     failed.on('error', err => errors.push(err.message));
 
     stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } }, { status: 200, body: { status: 'failed' } }]);
@@ -97,6 +111,7 @@ describe('RecoveryManager', () => {
     assert.deepEqual(calls, []);
 
     const on = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(on);
     stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } }, { status: 200, body: { status: 'completed' } }]);
     const first = on.onReconnect();
     const second = on.onReconnect();
@@ -110,6 +125,7 @@ describe('RecoveryManager', () => {
   it('requests recovery under a configured API base path', async () => {
     const { calls } = stubFetch([{ status: 200, body: { requestId: 'req-9', estimatedMessages: 0 } }]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true, '/partner/sos');
+    deliverSnapshots(manager);
 
     void manager.onReconnect();
     await settle([2000]);
@@ -126,6 +142,7 @@ describe('RecoveryManager', () => {
       { status: 200, body: { requestId: 'pre', estimatedMessages: 1 } },
     ]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager);
     const started: number[] = [];
     manager.on('recoveryStarted', data => started.push(data.estimatedMessages));
     manager.onAlive({ productId: 1, timestamp: 1_790_000_000_000, subscribed: true });
@@ -146,8 +163,13 @@ describe('RecoveryManager', () => {
   });
 
   it('starts from the first connect on the live producer when no alive was ever heard', async () => {
-    const { calls } = stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } }]);
+    const { calls } = stubFetch([
+      { status: 200, body: { requestId: 'r', estimatedMessages: 0 } },
+      { status: 200, body: { status: 'completed' } },
+      { status: 200, body: { requestId: 'r2', estimatedMessages: 0 } },
+    ]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager);
     manager.startMonitoring();
     const connectedAt = Date.now();
     mock.timers.tick(9_000);
@@ -156,6 +178,7 @@ describe('RecoveryManager', () => {
     manager.stopMonitoring();
 
     const unheard = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager, unheard);
     unheard.startMonitoring();
     unheard.stopMonitoring();
     mock.timers.tick(4_000);
@@ -178,6 +201,7 @@ describe('RecoveryManager', () => {
       { status: 200, body: { requestId: 'later', estimatedMessages: 0 } },
     ]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager);
     const events: string[] = [];
     manager.on('error', () => events.push('error'));
     manager.on('recoveryCompleted', () => events.push('completed'));
@@ -208,6 +232,7 @@ describe('RecoveryManager', () => {
   it('does not let an old alive, as a replay carries, move the checkpoint back', async () => {
     const { calls } = stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } }]);
     const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    deliverSnapshots(manager);
     manager.onAlive({ productId: 1, timestamp: 1_790_000_050_000, subscribed: true });
     manager.onAlive({ productId: 1, timestamp: 1_790_000_010_000, subscribed: true });
 
@@ -216,5 +241,56 @@ describe('RecoveryManager', () => {
     await recovery;
 
     assert.ok(calls[0].url.includes(`after=${iso(1_790_000_050_000)}`));
+  });
+
+  it('completes as soon as the snapshot_complete arrives, without waiting on the status', async () => {
+    const { calls } = stubFetch([{ status: 200, body: { requestId: 'req-1', estimatedMessages: 1 } }]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    const events: string[] = [];
+    manager.on('recoveryCompleted', () => events.push('completed'));
+
+    const recovery = manager.onReconnect();
+    await flush();
+    manager.onSnapshotComplete('req-1');
+    await settle([2_000]);
+    await recovery;
+
+    assert.deepEqual(events, ['completed']);
+    assert.equal(calls.length, 1, 'no status poll was needed');
+  });
+
+  it('waits for the snapshot_complete after the server reports completion, then gives up on it', async () => {
+    const { calls } = stubFetch([
+      { status: 200, body: { requestId: 'req-1', estimatedMessages: 1 } },
+      { status: 200, body: { status: 'completed' } },
+    ]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    const warn = console.warn as unknown as { mock: { calls: { arguments: unknown[] }[] } };
+    const events: string[] = [];
+    manager.on('recoveryCompleted', () => events.push('completed'));
+
+    const recovery = manager.onReconnect();
+    await settle([2_000, 2_000, 2_000, 2_000, 2_000]);
+    assert.deepEqual(events, [], 'still waiting for the snapshot_complete');
+    await settle([2_000]);
+    await recovery;
+
+    assert.deepEqual(events, ['completed']);
+    assert.equal(calls.length, 2, 'the status is not polled again once it said completed');
+    assert.ok(warn.mock.calls.some(c => String(c.arguments[0]).includes('never arrived')));
+  });
+
+  it('passes on why the server failed a recovery', async () => {
+    stubFetch([
+      { status: 200, body: { requestId: 'req-1', estimatedMessages: 1 } },
+      { status: 200, body: { status: 'failed', error: 'interrupted: the server running this replay stopped' } },
+    ]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true);
+    const errors: string[] = [];
+    manager.on('error', err => errors.push(err.message));
+    const recovery = manager.onReconnect();
+    await settle([2_000]);
+    await recovery;
+    assert.deepEqual(errors, ['Recovery failed on server: interrupted: the server running this replay stopped']);
   });
 });
