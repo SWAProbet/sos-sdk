@@ -131,3 +131,10 @@ import type {
   SportEventStatus,
 } from '@swa-voltron/sos-sdk';
 ```
+
+## Formatting
+
+Code is formatted by Prettier at 79 columns (`npm run format`). Every pull
+request runs the typecheck, the tests, `npm run format:check` and
+`npm run lint:lines`, which fails on any added or changed line longer than
+79 characters, including comments and strings Prettier cannot wrap.

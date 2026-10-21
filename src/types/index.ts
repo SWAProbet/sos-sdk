@@ -73,7 +73,12 @@ export interface AliveEvent {
   subscribed: boolean;
 }
 
-export type SosSport = 'tennis' | 'tabletennis' | 'volleyball' | 'mma' | 'boxing';
+export type SosSport =
+  | 'tennis'
+  | 'tabletennis'
+  | 'volleyball'
+  | 'mma'
+  | 'boxing';
 
 export interface SosClientConfig {
   accessToken: string;
@@ -81,9 +86,9 @@ export interface SosClientConfig {
   apiHost: string;
   /** Path the REST API is mounted at behind apiHost. Default: /sos. */
   apiBasePath?: string;
-  /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
+  /** Sport this feed carries; drives bindings and fixtures. Default: mma. */
   sport?: SosSport;
-  /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
+  /** AMQP queue bindings. Default: the sport's live messages and alive. */
   bindingPatterns?: string[];
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
   aliveTimeoutMs?: number;
@@ -131,7 +136,11 @@ export type SosEventMap = {
 
 // --- Fixtures, as /v1/sports/{sport}/events/json answers them ---
 
-export type FixtureStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+export type FixtureStatus =
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'FINISHED'
+  | 'CANCELLED';
 
 export type CompetitorGender = 'female' | 'male';
 
@@ -156,7 +165,7 @@ export interface FixtureCard {
 export interface Fixture {
   /** The event id the feed publishes on odds_change and bet_settlement. */
   eventId: string;
-  /** SWA's own identifier. Provisional: derived from eventId until SWA assigns it, so stable but not yet authoritative. */
+  /** SWA's id. Provisional: derived from eventId until SWA assigns one. */
   sosId: string;
   imgFightId: string | null;
   name: string;

@@ -1,0 +1,24 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the line check diffs against the commit this one builds on.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run format:check
+      - name: 79-column limit on changed lines
+        run: npm run lint:lines

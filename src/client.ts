@@ -21,11 +21,11 @@ import {
 
 const DEFAULT_SPORT: SosSport = 'mma';
 
-// What servers published alive on before it was per sport; bound so an older server still
-// reads as alive. Nothing is published on it once every server carries the per-sport key.
+// The alive key before it was per sport, bound so an older server still
+// reads as alive. Nothing publishes on it once servers are per sport.
 const LEGACY_ALIVE_KEY = 'system.live.alive.-';
 
-// One feed carries one sport, so bind that sport and its own heartbeat, never every sport's.
+// One feed, one sport: bind its keys and its own heartbeat, not every sport's.
 export function defaultBindingPatterns(sport: SosSport): string[] {
   return [`${sport}.live.#`, `system.live.alive.${sport}`, LEGACY_ALIVE_KEY];
 }
@@ -47,7 +47,8 @@ export class SosClient extends EventEmitter {
       apiBasePath: userConfig.apiBasePath ?? '/sos',
       sport: userConfig.sport ?? DEFAULT_SPORT,
       bindingPatterns:
-        userConfig.bindingPatterns || defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),
+        userConfig.bindingPatterns ||
+        defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),
       aliveTimeoutMs: userConfig.aliveTimeoutMs ?? 30000,
       autoRecover: userConfig.autoRecover ?? true,
     };
@@ -111,17 +112,22 @@ export class SosClient extends EventEmitter {
   }
 
   /**
-   * Every fixture the feed holds for this sport, filtered by date, status and whether
-   * the feed will price it. A bare date string is still accepted, as before.
+   * Every fixture the feed holds for this sport, filtered by date, status
+   * and whether it will be priced. A bare date string is still accepted.
    */
-  async getFixtures(filters: FixtureFilters | string = {}): Promise<Fixture[]> {
+  async getFixtures(
+    filters: FixtureFilters | string = {},
+  ): Promise<Fixture[]> {
     const query = typeof filters === 'string' ? { date: filters } : filters;
     const params = new URLSearchParams();
     if (query.date) params.set('date', query.date);
     if (query.status) params.set('status', query.status);
-    if (query.isLiveOdds !== undefined) params.set('is_liveodds', String(query.isLiveOdds));
+    if (query.isLiveOdds !== undefined)
+      params.set('is_liveodds', String(query.isLiveOdds));
     const suffix = params.size > 0 ? `?${params.toString()}` : '';
-    const body = await this.getJson<{ events: Fixture[] }>(`${this.fixturesPath()}/json${suffix}`);
+    const body = await this.getJson<{ events: Fixture[] }>(
+      `${this.fixturesPath()}/json${suffix}`,
+    );
     return body?.events ?? [];
   }
 
@@ -129,14 +135,18 @@ export class SosClient extends EventEmitter {
    * One fixture by its event id, or null when the feed does not hold it.
    */
   async getFixture(eventId: string): Promise<Fixture | null> {
-    return this.getJson<Fixture>(`${this.fixturesPath()}/${encodeURIComponent(eventId)}`);
+    return this.getJson<Fixture>(
+      `${this.fixturesPath()}/${encodeURIComponent(eventId)}`,
+    );
   }
 
   /**
-   * The fixture plus its result and settlement state, or null when the feed does not hold it.
+   * The fixture with its result and settlement state, or null if unknown.
    */
   async getEventSummary(eventId: string): Promise<EventSummary | null> {
-    return this.getJson<EventSummary>(`${this.fixturesPath()}/${encodeURIComponent(eventId)}/summary/json`);
+    return this.getJson<EventSummary>(
+      `${this.fixturesPath()}/${encodeURIComponent(eventId)}/summary/json`,
+    );
   }
 
   private fixturesPath(): string {
@@ -149,7 +159,9 @@ export class SosClient extends EventEmitter {
 
   // A 404 is an answer (nothing held), any other failure is an error.
   private async getJson<T>(url: string): Promise<T | null> {
-    const response = await fetch(url, { headers: { 'X-API-Key': this.config.accessToken } });
+    const response = await fetch(url, {
+      headers: { 'X-API-Key': this.config.accessToken },
+    });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`SOS API ${response.status} for ${url}`);
     return (await response.json()) as T;
@@ -166,7 +178,7 @@ export class SosClient extends EventEmitter {
         const isReconnect = this.hasConnected;
         this.hasConnected = true;
         this.emit('connected');
-        // The first connect has nothing to replay; every later one has the outage.
+        // The first connect has nothing to replay; later ones have the gap.
         if (isReconnect) void this.recoveryManager.onReconnect();
       } catch (err: any) {
         console.error('[SosSDK] Failed to start consumer:', err);
@@ -181,9 +193,12 @@ export class SosClient extends EventEmitter {
     });
 
     // AMQP message handling
-    this.consumer.on('message', ({ xml }: { xml: string; routingKey: string }) => {
-      this.handleMessage(xml);
-    });
+    this.consumer.on(
+      'message',
+      ({ xml }: { xml: string; routingKey: string }) => {
+        this.handleMessage(xml);
+      },
+    );
 
     // Recovery events
     this.recoveryManager.on('recoveryStarted', (data) => {

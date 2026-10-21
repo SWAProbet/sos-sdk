@@ -18,12 +18,21 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: '@_',
   allowBooleanAttributes: true,
   parseAttributeValue: true,
-  isArray: (tagName) => ['market', 'outcome', 'competitor', 'result'].includes(tagName),
+  isArray: (tagName) =>
+    ['market', 'outcome', 'competitor', 'result'].includes(tagName),
 });
 
 export function parseSosXml(
   xml: string,
-): OddsChangeEvent | BetSettlementEvent | BetStopEvent | BetCancelEvent | FixtureChangeEvent | SnapshotCompleteEvent | AliveEvent | null {
+):
+  | OddsChangeEvent
+  | BetSettlementEvent
+  | BetStopEvent
+  | BetCancelEvent
+  | FixtureChangeEvent
+  | SnapshotCompleteEvent
+  | AliveEvent
+  | null {
   const parsed = xmlParser.parse(xml);
 
   if (parsed.odds_change) return parseOddsChange(parsed.odds_change);
@@ -31,7 +40,8 @@ export function parseSosXml(
   if (parsed.bet_stop) return parseBetStop(parsed.bet_stop);
   if (parsed.bet_cancel) return parseBetCancel(parsed.bet_cancel);
   if (parsed.fixture_change) return parseFixtureChange(parsed.fixture_change);
-  if (parsed.snapshot_complete) return parseSnapshotComplete(parsed.snapshot_complete);
+  if (parsed.snapshot_complete)
+    return parseSnapshotComplete(parsed.snapshot_complete);
   if (parsed.alive) return parseAlive(parsed.alive);
 
   return null;
@@ -46,13 +56,18 @@ function parseOddsChange(oc: any): OddsChangeEvent {
   for (const m of marketArr) {
     if (!m) continue;
     const rawOutcomes = m.outcome || [];
-    const outcomeArr = Array.isArray(rawOutcomes) ? rawOutcomes : [rawOutcomes];
+    const outcomeArr = Array.isArray(rawOutcomes)
+      ? rawOutcomes
+      : [rawOutcomes];
 
     const outcomes: Outcome[] = outcomeArr.map((o: any) => ({
       id: String(o['@_id']),
       odds: o['@_odds'] != null ? Number(o['@_odds']) : undefined,
       active: o['@_active'] === 1 || o['@_active'] === '1',
-      probabilities: o['@_probabilities'] != null ? Number(o['@_probabilities']) : undefined,
+      probabilities:
+        o['@_probabilities'] != null
+          ? Number(o['@_probabilities'])
+          : undefined,
     }));
 
     markets.push({
@@ -73,10 +88,15 @@ function parseOddsChange(oc: any): OddsChangeEvent {
       status: Number(ses['@_status'] ?? 0),
       matchStatus: Number(ses['@_match_status'] ?? 0),
       reporting: Number(ses['@_reporting'] ?? 0),
-      clock: ses.clock ? {
-        matchTime: ses.clock['@_match_time'],
-        round: ses.clock['@_round'] != null ? Number(ses.clock['@_round']) : undefined,
-      } : undefined,
+      clock: ses.clock
+        ? {
+            matchTime: ses.clock['@_match_time'],
+            round:
+              ses.clock['@_round'] != null
+                ? Number(ses.clock['@_round'])
+                : undefined,
+          }
+        : undefined,
     },
     markets,
   };
@@ -91,7 +111,9 @@ function parseBetSettlement(bs: any): BetSettlementEvent {
   for (const m of marketArr) {
     if (!m) continue;
     const rawOutcomes = m.outcome || [];
-    const outcomeArr = Array.isArray(rawOutcomes) ? rawOutcomes : [rawOutcomes];
+    const outcomeArr = Array.isArray(rawOutcomes)
+      ? rawOutcomes
+      : [rawOutcomes];
 
     const outcomes: SettlementOutcome[] = outcomeArr.map((o: any) => {
       const resultCode = String(o['@_result']);
@@ -103,8 +125,14 @@ function parseBetSettlement(bs: any): BetSettlementEvent {
       return {
         id: String(o['@_id']),
         result,
-        voidFactor: o['@_void_factor'] != null && o['@_void_factor'] !== '' ? Number(o['@_void_factor']) : undefined,
-        deadHeatFactor: o['@_dead_heat_factor'] != null && o['@_dead_heat_factor'] !== '' ? Number(o['@_dead_heat_factor']) : undefined,
+        voidFactor:
+          o['@_void_factor'] != null && o['@_void_factor'] !== ''
+            ? Number(o['@_void_factor'])
+            : undefined,
+        deadHeatFactor:
+          o['@_dead_heat_factor'] != null && o['@_dead_heat_factor'] !== ''
+            ? Number(o['@_dead_heat_factor'])
+            : undefined,
       };
     });
 
@@ -142,7 +170,8 @@ function parseBetCancel(bc: any): BetCancelEvent {
     productId: Number(bc['@_product']),
     eventId: String(bc['@_event_id']),
     timestamp: Number(bc['@_timestamp']),
-    startTime: bc['@_start_time'] != null ? Number(bc['@_start_time']) : undefined,
+    startTime:
+      bc['@_start_time'] != null ? Number(bc['@_start_time']) : undefined,
     endTime: bc['@_end_time'] != null ? Number(bc['@_end_time']) : undefined,
     markets: marketArr.filter(Boolean).map((m: any) => ({
       id: Number(m['@_id']),
@@ -156,7 +185,8 @@ function parseFixtureChange(fc: any): FixtureChangeEvent {
     productId: Number(fc['@_product']),
     eventId: String(fc['@_event_id']),
     timestamp: Number(fc['@_timestamp']),
-    startTime: fc['@_start_time'] != null ? Number(fc['@_start_time']) : undefined,
+    startTime:
+      fc['@_start_time'] != null ? Number(fc['@_start_time']) : undefined,
   };
 }
 

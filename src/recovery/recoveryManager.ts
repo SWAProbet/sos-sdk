@@ -13,7 +13,7 @@ interface RecoveryRequest {
 export class RecoveryManager extends EventEmitter {
   // Local clock, for the silence timer only. Restarted on every connect.
   private lastAliveAt: number = Date.now();
-  // Per producer, the feed's own timestamp on its last alive: where a replay starts.
+  // Per producer, the feed timestamp on its last alive: where replay starts.
   private checkpoints = new Map<number, number>();
   // What a replay in flight, or one that failed, still has to start from.
   private owed: Map<number, number> | null = null;
@@ -34,8 +34,8 @@ export class RecoveryManager extends EventEmitter {
   }
 
   /**
-   * Start monitoring alive messages. The silence timer restarts on each connect; the
-   * checkpoints do not, because they say where the feed was last heard from.
+   * Start monitoring alive messages. The silence timer restarts on each
+   * connect; the checkpoints do not, as they mark the feed's last alive.
    */
   startMonitoring(): void {
     this.lastAliveAt = Date.now();
@@ -48,7 +48,9 @@ export class RecoveryManager extends EventEmitter {
 
       const elapsed = Date.now() - this.lastAliveAt;
       if (elapsed > this.aliveTimeoutMs) {
-        console.warn(`[SosSDK:Recovery] No alive for ${elapsed}ms, triggering recovery`);
+        console.warn(
+          `[SosSDK:Recovery] No alive for ${elapsed}ms, triggering recovery`,
+        );
         void this.triggerRecovery();
       } else if (this.owed) {
         console.warn('[SosSDK:Recovery] Retrying the recovery that failed');
@@ -74,13 +76,19 @@ export class RecoveryManager extends EventEmitter {
    */
   onAlive(event: AliveEvent): void {
     this.lastAliveAt = Date.now();
-    const feedTime = Number.isFinite(event.timestamp) && event.timestamp > 0 ? event.timestamp : Date.now();
-    // A replay carries old alives too; one of those must not move the checkpoint back.
-    this.checkpoints.set(event.productId, Math.max(feedTime, this.checkpoints.get(event.productId) ?? 0));
+    const feedTime =
+      Number.isFinite(event.timestamp) && event.timestamp > 0
+        ? event.timestamp
+        : Date.now();
+    // A replay carries old alives; none may move the checkpoint back.
+    this.checkpoints.set(
+      event.productId,
+      Math.max(feedTime, this.checkpoints.get(event.productId) ?? 0),
+    );
   }
 
   /**
-   * Called on reconnect: requests everything since the last alive before the drop.
+   * Called on reconnect: requests everything since the last alive.
    */
   async onReconnect(): Promise<void> {
     if (!this.autoRecover) return;
@@ -91,7 +99,7 @@ export class RecoveryManager extends EventEmitter {
     if (this.isRecovering) return;
     this.isRecovering = true;
     this.lastAttemptAt = Date.now();
-    // Held until a replay succeeds, so alives arriving meanwhile cannot move the start.
+    // Held until a replay succeeds, so new alives cannot move the start.
     this.owed ??= this.recoveryPoints();
 
     try {
@@ -100,7 +108,10 @@ export class RecoveryManager extends EventEmitter {
         requests.push(await this.initiate(producerId, after));
       }
       this.emit('recoveryStarted', {
-        estimatedMessages: requests.reduce((total, request) => total + request.estimatedMessages, 0),
+        estimatedMessages: requests.reduce(
+          (total, request) => total + request.estimatedMessages,
+          0,
+        ),
       });
 
       for (const request of requests) {
@@ -116,16 +127,25 @@ export class RecoveryManager extends EventEmitter {
     }
   }
 
-  // Every producer heard from, or the live producer from the first connect when none was.
+  // Every producer heard from, else the live producer from the first connect.
   private recoveryPoints(): Map<number, number> {
     if (this.checkpoints.size > 0) return new Map(this.checkpoints);
-    return new Map([[DEFAULT_PRODUCER_ID, this.monitoringSince ?? this.lastAliveAt]]);
+    return new Map([
+      [DEFAULT_PRODUCER_ID, this.monitoringSince ?? this.lastAliveAt],
+    ]);
   }
 
-  private async initiate(producerId: number, after: number): Promise<RecoveryRequest> {
-    const params = `after=${encodeURIComponent(new Date(after).toISOString())}`;
-    const queue = this.consumerQueue ? `&consumer_queue=${encodeURIComponent(this.consumerQueue)}` : '';
-    const url = `${this.apiHost}${this.apiBasePath}/recovery/${producerId}/initiate_request?${params}${queue}`;
+  private async initiate(
+    producerId: number,
+    after: number,
+  ): Promise<RecoveryRequest> {
+    const since = new Date(after).toISOString();
+    const params = `after=${encodeURIComponent(since)}`;
+    const queue = this.consumerQueue
+      ? `&consumer_queue=${encodeURIComponent(this.consumerQueue)}`
+      : '';
+    const root = `${this.apiHost}${this.apiBasePath}/recovery`;
+    const url = `${root}/${producerId}/initiate_request?${params}${queue}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -136,33 +156,45 @@ export class RecoveryManager extends EventEmitter {
     });
 
     if (!response.ok) {
-      throw new Error(`Recovery request failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Recovery request failed: ${response.status} ${response.statusText}`,
+      );
     }
 
-    const result = await response.json() as { requestId: string; estimatedMessages: number };
-    return { producerId, requestId: result.requestId, estimatedMessages: result.estimatedMessages };
+    const result = (await response.json()) as {
+      requestId: string;
+      estimatedMessages: number;
+    };
+    return {
+      producerId,
+      requestId: result.requestId,
+      estimatedMessages: result.estimatedMessages,
+    };
   }
 
   private async pollRecoveryStatus(request: RecoveryRequest): Promise<void> {
     const maxAttempts = 60;
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2000));
 
       let status: { status: string };
       try {
-        const url = `${this.apiHost}${this.apiBasePath}/recovery/${request.producerId}/status?request_id=${encodeURIComponent(request.requestId)}`;
+        const root = `${this.apiHost}${this.apiBasePath}/recovery`;
+        const id = encodeURIComponent(request.requestId);
+        const url = `${root}/${request.producerId}/status?request_id=${id}`;
         const response = await fetch(url, {
           headers: { 'X-API-Key': this.accessToken },
         });
 
         if (!response.ok) continue;
-        status = await response.json() as { status: string };
+        status = (await response.json()) as { status: string };
       } catch {
         continue;
       }
 
       if (status.status === 'completed') return;
-      if (status.status === 'failed') throw new Error('Recovery failed on server');
+      if (status.status === 'failed')
+        throw new Error('Recovery failed on server');
     }
 
     throw new Error('Recovery polling timed out');
