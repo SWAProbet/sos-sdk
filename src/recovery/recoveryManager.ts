@@ -29,6 +29,7 @@ export class RecoveryManager extends EventEmitter {
     private aliveTimeoutMs: number,
     private autoRecover: boolean,
     private apiBasePath: string = '/sos',
+    private sport?: string,
   ) {
     super();
   }
@@ -122,10 +123,14 @@ export class RecoveryManager extends EventEmitter {
     return new Map([[DEFAULT_PRODUCER_ID, this.monitoringSince ?? this.lastAliveAt]]);
   }
 
+  private sportQuery(): string {
+    return this.sport ? `&sport=${encodeURIComponent(this.sport)}` : '';
+  }
+
   private async initiate(producerId: number, after: number): Promise<RecoveryRequest> {
     const params = `after=${encodeURIComponent(new Date(after).toISOString())}`;
     const queue = this.consumerQueue ? `&consumer_queue=${encodeURIComponent(this.consumerQueue)}` : '';
-    const url = `${this.apiHost}${this.apiBasePath}/recovery/${producerId}/initiate_request?${params}${queue}`;
+    const url = `${this.apiHost}${this.apiBasePath}/recovery/${producerId}/initiate_request?${params}${queue}${this.sportQuery()}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -150,7 +155,7 @@ export class RecoveryManager extends EventEmitter {
 
       let status: { status: string };
       try {
-        const url = `${this.apiHost}${this.apiBasePath}/recovery/${request.producerId}/status?request_id=${encodeURIComponent(request.requestId)}`;
+        const url = `${this.apiHost}${this.apiBasePath}/recovery/${request.producerId}/status?request_id=${encodeURIComponent(request.requestId)}${this.sportQuery()}`;
         const response = await fetch(url, {
           headers: { 'X-API-Key': this.accessToken },
         });

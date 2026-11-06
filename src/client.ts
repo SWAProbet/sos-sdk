@@ -64,6 +64,7 @@ export class SosClient extends EventEmitter {
       this.config.aliveTimeoutMs,
       this.config.autoRecover,
       this.config.apiBasePath,
+      this.config.sport,
     );
 
     this.wireEvents();
@@ -104,7 +105,7 @@ export class SosClient extends EventEmitter {
    */
   async getMarketDescriptions(): Promise<any> {
     const response = await fetch(
-      `${this.apiRoot()}/v1/descriptions/markets/json`,
+      `${this.apiRoot()}/v1/descriptions/markets/json?sport=${encodeURIComponent(this.config.sport)}`,
       { headers: { 'X-API-Key': this.config.accessToken } },
     );
     return response.json();
