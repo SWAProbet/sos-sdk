@@ -131,3 +131,11 @@ import type {
   SportEventStatus,
 } from '@swa-voltron/sos-sdk';
 ```
+
+### Shared SOS deployment
+
+Use the AMQP credentials and vhost assigned to your client; routing keys and the
+SDK's anonymous exclusive queue behaviour are unchanged. A shared SOS server can
+serve multiple sports. Catalogue and recovery reads include this client's configured
+`sport`, including recovery status polling. One `SosClient` still consumes one sport;
+HTTP client ownership comes from its API credential, not a client query parameter.

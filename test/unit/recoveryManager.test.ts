@@ -218,3 +218,19 @@ describe('RecoveryManager', () => {
     assert.ok(calls[0].url.includes(`after=${iso(1_790_000_050_000)}`));
   });
 });
+
+
+describe('shared server recovery scope', () => {
+  afterEach(() => { mock.restoreAll(); mock.timers.reset(); });
+  it('scopes initiation and polling to the configured sport', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] });
+    const { calls } = stubFetch([{ status: 200, body: { requestId: 'r', estimatedMessages: 0 } },
+      { status: 200, body: { status: 'completed' } }]);
+    const manager = new RecoveryManager('https://api.example', 'key', 30_000, true, '/sos', 'tennis');
+    const pending = manager.onReconnect();
+    await settle([2_000]);
+    await pending;
+    assert.equal(calls.length, 2);
+    for (const call of calls) assert.equal(new URL(call.url).searchParams.get('sport'), 'tennis');
+  });
+});

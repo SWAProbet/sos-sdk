@@ -107,7 +107,17 @@ describe('fixtures through the SDK', () => {
     assert.deepEqual(calls.map(c => c.url), [
       'https://api.example/partner/sos/v1/sports/boxing/events/json',
       'https://api.example/partner/sos/v1/sports/boxing/events/sr%3Amatch%3A1',
-      'https://api.example/partner/sos/v1/descriptions/markets/json',
+      'https://api.example/partner/sos/v1/descriptions/markets/json?sport=boxing',
     ]);
+  });
+});
+
+
+describe('shared server catalogue scope', () => {
+  afterEach(() => mock.restoreAll());
+  it('requests the configured sport instead of the multi-sport catalogue', async () => {
+    const { calls } = stubFetch(200, []);
+    await client('boxing').getMarketDescriptions();
+    assert.equal(new URL(calls[0].url).searchParams.get('sport'), 'boxing');
   });
 });
