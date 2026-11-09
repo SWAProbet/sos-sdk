@@ -84,7 +84,7 @@ new SosClient(config: SosClientConfig)
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
 | `apiBasePath` | `string` | `/sos` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
 | `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. Not applied when `queue` is set. |
-| `queue` | `string` | none | Name of your durable partner queue, `swa.sos.partner.{partnerId}`: the `queueName` returned when your partner account is registered. When set, the client consumes that queue by name and declares and binds nothing, because partner credentials may do neither; the server has already bound it to your sports and their heartbeats. Left unset, the client declares an exclusive auto-delete queue for each connection. |
+| `queue` | `string` | none | Name of your durable partner queue, `swa.sos.partner.{partnerId}`; the token exchange, `POST {apiBasePath}/auth/token`, returns your `partnerId`. When set, the client consumes that queue by name and declares and binds nothing, because partner credentials can neither declare a named queue nor change its bindings; the server has already bound it to your sports and their heartbeats. Left unset, the client declares an exclusive auto-delete queue for each connection. |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
 

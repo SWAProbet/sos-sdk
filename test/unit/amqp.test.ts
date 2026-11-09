@@ -34,7 +34,7 @@ function fakeBroker() {
 const deliver = (channel: ReturnType<typeof fakeBroker>['channel'], xml: string, routingKey = 'boxing.live.odds_change.sr:match:1') =>
   channel.handler?.({ content: Buffer.from(xml), fields: { routingKey }, properties: { headers: {} } });
 
-// A broker as partner credentials meet it: the durable queue is there, and they may neither declare nor bind.
+// The durable queue as partner credentials meet it: it is there to consume, and every declare and bind is refused.
 const PARTNER_QUEUE = 'swa.sos.partner.3f9a1c2e';
 function partnerBroker() {
   const broker = fakeBroker();

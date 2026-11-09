@@ -29,8 +29,8 @@ export class AmqpConsumer extends EventEmitter {
     if (!channel) throw new Error('AMQP not connected');
 
     if (this.durableQueue) {
-      // The server declared and bound the partner queue, and partner credentials may do
-      // neither, so it is consumed by name, as it stands.
+      // The server declared and bound the partner queue, and partner credentials can neither
+      // declare a named queue nor change its bindings, so it is consumed by name, as it stands.
       this.queueName = this.durableQueue;
     } else {
       // Exclusive, auto-delete queue for this SDK instance

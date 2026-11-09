@@ -100,8 +100,9 @@ export interface SosClientConfig {
   bindingPatterns?: string[];
   /**
    * Name of your durable partner queue, `swa.sos.partner.{partnerId}`. When set, the client
-   * consumes that queue by name and neither declares nor binds anything, which partner
-   * credentials are not allowed to do. Default: an exclusive auto-delete queue per connection.
+   * consumes that queue by name and declares and binds nothing: partner credentials can neither
+   * declare a named queue nor change its bindings. Default: an exclusive auto-delete queue per
+   * connection.
    */
   queue?: string;
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
