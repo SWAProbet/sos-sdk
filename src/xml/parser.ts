@@ -73,8 +73,12 @@ function parseOddsChange(oc: any): OddsChangeEvent {
       status: Number(ses['@_status'] ?? 0),
       matchStatus: Number(ses['@_match_status'] ?? 0),
       reporting: Number(ses['@_reporting'] ?? 0),
+      homeScore: optionalNumber(ses['@_home_score']),
+      awayScore: optionalNumber(ses['@_away_score']),
       clock: ses.clock ? {
         matchTime: ses.clock['@_match_time'],
+        remainingTime: ses.clock['@_remaining_time'] != null ? String(ses.clock['@_remaining_time']) : undefined,
+        stopped: optionalBoolean(ses.clock['@_stopped']),
         round: ses.clock['@_round'] != null ? Number(ses.clock['@_round']) : undefined,
       } : undefined,
     },
@@ -130,7 +134,9 @@ function parseBetStop(stop: any): BetStopEvent {
     productId: Number(stop['@_product']),
     eventId: String(stop['@_event_id']),
     timestamp: Number(stop['@_timestamp']),
-    groups: String(stop.groups || 'all'),
+    // The server sends groups and market_status as attributes; older payloads used a child element.
+    groups: String(stop['@_groups'] || stop.groups || 'all'),
+    marketStatus: optionalNumber(stop['@_market_status']),
   };
 }
 
@@ -146,6 +152,8 @@ function parseBetCancel(bc: any): BetCancelEvent {
     endTime: bc['@_end_time'] != null ? Number(bc['@_end_time']) : undefined,
     markets: marketArr.filter(Boolean).map((m: any) => ({
       id: Number(m['@_id']),
+      // Read as on odds_change and bet_settlement, so a cancelled line compares equal to its market.
+      specifiers: m['@_specifiers'] || undefined,
       voidReason: m['@_void_reason'] != null ? m['@_void_reason'] : undefined,
     })),
   };
@@ -174,6 +182,19 @@ function parseAlive(alive: any): AliveEvent {
     timestamp: Number(alive['@_timestamp']),
     subscribed: alive['@_subscribed'] === 1 || alive['@_subscribed'] === '1',
   };
+}
+
+// parseAttributeValue has already typed an attribute where it could ("3" is 3, "false" is
+// false), so these take either form and answer undefined where the feed sent nothing usable.
+function optionalNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined;
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  return undefined;
 }
 
 /**

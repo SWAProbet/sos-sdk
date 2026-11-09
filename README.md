@@ -103,12 +103,25 @@ new SosClient(config: SosClientConfig)
 | `oddsChange` | `OddsChangeEvent` | Odds update |
 | `betSettlement` | `BetSettlementEvent` | Market settlement |
 | `betStop` | `BetStopEvent` | Market suspension |
+| `betCancel` | `BetCancelEvent` | Settlement reversed |
+| `fixtureChange` | `FixtureChangeEvent` | Fixture added or changed |
+| `snapshotComplete` | `SnapshotCompleteEvent` | End of a recovery replay |
 | `alive` | `AliveEvent` | Producer heartbeat |
 | `connected` | `void` | AMQP connected |
 | `disconnected` | `void` | AMQP disconnected |
 | `recoveryStarted` | `{ estimatedMessages }` | Recovery initiated |
 | `recoveryCompleted` | `void` | Recovery finished |
 | `error` | `Error` | Error occurred |
+
+Beyond ids, timestamps, markets and outcomes, the events carry these fields. Each is `undefined` when the message does not have it.
+
+| Event | Field | Description |
+|---|---|---|
+| `oddsChange` | `sportEventStatus.homeScore`, `sportEventStatus.awayScore` | Score of each competitor; the feed sends `0` where the sport keeps none |
+| `oddsChange` | `sportEventStatus.clock.remainingTime` | Time left in the current period, as `m:ss` |
+| `oddsChange` | `sportEventStatus.clock.stopped` | `true` while the clock is not running, `false` while it runs |
+| `betStop` | `marketStatus` | Status applied to the stopped markets: `0`, deactivated |
+| `betCancel` | `markets[].specifiers` | The cancelled line, written as on `oddsChange` and `betSettlement`, so it can be matched to its market |
 
 ## Recovery
 
