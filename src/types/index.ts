@@ -93,8 +93,17 @@ export interface SosClientConfig {
   apiBasePath?: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
   sport?: SosSport;
-  /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
+  /**
+   * Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive.
+   * Not applied when `queue` is set: the server binds that queue.
+   */
   bindingPatterns?: string[];
+  /**
+   * Name of your durable partner queue, `swa.sos.partner.{partnerId}`. When set, the client
+   * consumes that queue by name and neither declares nor binds anything, which partner
+   * credentials are not allowed to do. Default: an exclusive auto-delete queue per connection.
+   */
+  queue?: string;
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
   aliveTimeoutMs?: number;
   /** Auto-recover on reconnect. Default: true. */

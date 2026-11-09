@@ -83,7 +83,8 @@ new SosClient(config: SosClientConfig)
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
 | `apiBasePath` | `string` | `/sos` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
-| `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. |
+| `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. Not applied when `queue` is set. |
+| `queue` | `string` | none | Name of your durable partner queue, `swa.sos.partner.{partnerId}`: the `queueName` returned when your partner account is registered. When set, the client consumes that queue by name and declares and binds nothing, because partner credentials may do neither; the server has already bound it to your sports and their heartbeats. Left unset, the client declares an exclusive auto-delete queue for each connection. |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
 
@@ -126,6 +127,8 @@ Beyond ids, timestamps, markets and outcomes, the events carry these fields. Eac
 ## Recovery
 
 With `autoRecover` on, the client asks the server to replay what it missed in two cases: when no alive has arrived for `aliveTimeoutMs`, and when the connection comes back after a drop. The first connect asks for nothing. A replay starts from the last alive heard before the gap, using the feed's own timestamp on that alive, and is requested once for each producer the client has heard from. The request names the queue the connection consumes from as `consumer_queue`. If a recovery fails, its starting point is kept and it is tried again after `aliveTimeoutMs`, so alives arriving in the meantime cannot shrink what is replayed. `recoveryStarted` and `recoveryCompleted` fire once for the whole recovery, and `estimatedMessages` counts every producer.
+
+With `queue` set, `consumer_queue` is your durable queue and the replay is delivered into it. That queue also holds what is published while no client is connected, for up to 72 hours, and delivers it on the next connect, so expect the replay that follows a reconnect to repeat messages already read from the queue. Run one client per durable queue: clients that share a queue split its messages between them.
 
 ## Types
 

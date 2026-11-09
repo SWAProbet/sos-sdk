@@ -30,11 +30,14 @@ export function defaultBindingPatterns(sport: SosSport): string[] {
   return [`${sport}.live.#`, `system.live.alive.${sport}`, LEGACY_ALIVE_KEY];
 }
 
+// Every option with its default filled in, except the durable queue, which has none.
+type ResolvedConfig = Required<Omit<SosClientConfig, 'queue'>> & Pick<SosClientConfig, 'queue'>;
+
 export class SosClient extends EventEmitter {
   private amqpConnection: AmqpConnection;
   private consumer: AmqpConsumer;
   private recoveryManager: RecoveryManager;
-  private config: Required<SosClientConfig>;
+  private config: ResolvedConfig;
   private hasConnected = false;
 
   constructor(userConfig: SosClientConfig) {
@@ -50,6 +53,8 @@ export class SosClient extends EventEmitter {
         userConfig.bindingPatterns || defaultBindingPatterns(userConfig.sport ?? DEFAULT_SPORT),
       aliveTimeoutMs: userConfig.aliveTimeoutMs ?? 30000,
       autoRecover: userConfig.autoRecover ?? true,
+      // An empty name, as an unset environment variable gives, means no durable queue.
+      queue: userConfig.queue || undefined,
     };
 
     this.amqpConnection = new AmqpConnection(this.config.amqpHost);
@@ -57,6 +62,7 @@ export class SosClient extends EventEmitter {
       this.amqpConnection,
       'swa.sos',
       this.config.bindingPatterns,
+      this.config.queue,
     );
     this.recoveryManager = new RecoveryManager(
       this.config.apiHost,

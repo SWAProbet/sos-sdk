@@ -8,9 +8,12 @@ import { SosClient } from '../../src/client';
 function fakeBroker(queue: string) {
   const channel = {
     handler: null as ((msg: unknown) => void) | null,
-    async assertQueue() { return { queue }; },
-    async bindQueue() {},
-    async consume(_queue: string, handler: (msg: unknown) => void) { channel.handler = handler; return { consumerTag: 'tag' }; },
+    declared: 0,
+    bound: 0,
+    consumed: [] as string[],
+    async assertQueue() { channel.declared += 1; return { queue }; },
+    async bindQueue() { channel.bound += 1; },
+    async consume(name: string, handler: (msg: unknown) => void) { channel.consumed.push(name); channel.handler = handler; return { consumerTag: 'tag' }; },
     ack() {},
     async cancel() {},
     async close() {},
@@ -47,12 +50,12 @@ describe('recovery after a reconnect', () => {
   });
   afterEach(() => { mock.timers.reset(); mock.restoreAll(); });
 
-  async function connectDropAndReconnect(autoRecover: boolean) {
+  async function connectDropAndReconnect(autoRecover: boolean, queue?: string) {
     const brokers = [fakeBroker('amq.gen-first'), fakeBroker('amq.gen-second')];
-    const [first] = brokers;
+    const [first, second] = brokers;
     mock.method(amqplib, 'connect', async () => brokers.shift()!.connection as never);
     const calls = stubRecoveryApi();
-    const client = new SosClient({ accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing', autoRecover });
+    const client = new SosClient({ accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing', autoRecover, queue });
     const seen: string[] = [];
     client.on('recoveryStarted', data => seen.push(`started ${data.estimatedMessages}`));
     client.on('recoveryCompleted', () => seen.push('completed'));
@@ -69,7 +72,7 @@ describe('recovery after a reconnect', () => {
     await flush();
     mock.timers.tick(2_000);
     await flush();
-    return { client, calls, callsOnFirstConnect, seen };
+    return { client, calls, callsOnFirstConnect, seen, channels: [first.channel, second.channel] };
   }
 
   it('asks for everything since the last alive before the drop, into the new consumer queue', async () => {
@@ -82,6 +85,23 @@ describe('recovery after a reconnect', () => {
       'GET https://api.example/sos/recovery/1/status?request_id=req-1&sport=boxing',
     ]);
     assert.deepEqual(seen, ['started 2', 'completed']);
+    await client.disconnect();
+  });
+
+  it('asks for the replay into the durable partner queue when that is the queue it consumes', async () => {
+    const queue = 'swa.sos.partner.3f9a1c2e';
+    const { client, calls, callsOnFirstConnect, seen, channels } = await connectDropAndReconnect(true, queue);
+
+    assert.deepEqual(callsOnFirstConnect, []);
+    const after = encodeURIComponent(new Date(LAST_ALIVE).toISOString());
+    assert.deepEqual(calls, [
+      `POST https://api.example/sos/recovery/1/initiate_request?after=${after}&consumer_queue=${queue}&sport=boxing`,
+      'GET https://api.example/sos/recovery/1/status?request_id=req-1&sport=boxing',
+    ]);
+    assert.deepEqual(seen, ['started 2', 'completed']);
+    // Both connections consume the one queue by name; neither declares or binds.
+    assert.deepEqual(channels.map(c => c.consumed), [[queue], [queue]]);
+    assert.deepEqual(channels.map(c => [c.declared, c.bound]), [[0, 0], [0, 0]]);
     await client.disconnect();
   });
 
