@@ -12,8 +12,16 @@ export interface SportEventStatus {
   status: number;
   matchStatus: number;
   reporting: number;
+  /** Score of the first competitor; the feed sends 0 where the sport keeps none. */
+  homeScore?: number;
+  /** Score of the second competitor; the feed sends 0 where the sport keeps none. */
+  awayScore?: number;
   clock?: {
     matchTime?: string;
+    /** Time left in the current period, as m:ss. */
+    remainingTime?: string;
+    /** True while the clock is not running, for example between periods. */
+    stopped?: boolean;
     round?: number;
   };
   statistics?: CompetitorStats[];
@@ -65,8 +73,11 @@ export interface BetStopEvent {
   eventId: string;
   timestamp: number;
   groups: string;
+  /** Status applied to the stopped markets, in the codes a market's status uses: 0 is deactivated. */
+  marketStatus?: number;
 }
 
+/** This sport's producer heartbeat. Another sport's, as a queue bound to several sports carries, is not emitted. */
 export interface AliveEvent {
   productId: number;
   timestamp: number;
@@ -83,8 +94,19 @@ export interface SosClientConfig {
   apiBasePath?: string;
   /** Sport this feed carries. Drives binding patterns and the fixtures path. Default: mma. */
   sport?: SosSport;
-  /** Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive. */
+  /**
+   * Binding patterns for the AMQP queue. Defaults to the sport's live messages + alive.
+   * Not applied when `queue` is set: the server binds that queue.
+   */
   bindingPatterns?: string[];
+  /**
+   * Name of your durable partner queue, `swa.sos.partner.{partnerId}`. When set, the client
+   * consumes that queue by name and declares and binds nothing: partner credentials can neither
+   * declare a named queue nor change its bindings. The queue carries every sport on the account,
+   * but only `sport`'s heartbeat counts as this feed's, and recovery covers `sport` alone.
+   * Default: an exclusive auto-delete queue per connection.
+   */
+  queue?: string;
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */
   aliveTimeoutMs?: number;
   /** Auto-recover on reconnect. Default: true. */
@@ -105,7 +127,8 @@ export interface BetCancelEvent {
   timestamp: number;
   startTime?: number;
   endTime?: number;
-  markets: Array<{ id: number; voidReason?: string | number }>;
+  /** `specifiers` picks out the cancelled line, in the same form as on odds_change and bet_settlement. */
+  markets: Array<{ id: number; specifiers?: string; voidReason?: string | number }>;
 }
 
 export interface SnapshotCompleteEvent {

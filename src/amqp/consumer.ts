@@ -10,11 +10,13 @@ export class AmqpConsumer extends EventEmitter {
     private connection: AmqpConnection,
     private exchange: string,
     private bindingPatterns: string[],
+    // The partner's durable queue, when that is the one to consume; unset, a queue of this connection's own.
+    private durableQueue?: string,
   ) {
     super();
   }
 
-  // The broker's name for this connection's queue, null until started.
+  // The queue this connection consumes from, null until started.
   get queue(): string | null {
     return this.queueName;
   }
@@ -26,16 +28,22 @@ export class AmqpConsumer extends EventEmitter {
     const channel = this.connection.getChannel();
     if (!channel) throw new Error('AMQP not connected');
 
-    // Exclusive, auto-delete queue for this SDK instance
-    const q = await channel.assertQueue('', {
-      exclusive: true,
-      autoDelete: true,
-    });
-    this.queueName = q.queue;
+    if (this.durableQueue) {
+      // The server declared and bound the partner queue, and partner credentials can neither
+      // declare a named queue nor change its bindings, so it is consumed by name, as it stands.
+      this.queueName = this.durableQueue;
+    } else {
+      // Exclusive, auto-delete queue for this SDK instance
+      const q = await channel.assertQueue('', {
+        exclusive: true,
+        autoDelete: true,
+      });
+      this.queueName = q.queue;
 
-    // Bind to the exchange with the specified patterns
-    for (const pattern of this.bindingPatterns) {
-      await channel.bindQueue(this.queueName, this.exchange, pattern);
+      // Bind to the exchange with the specified patterns
+      for (const pattern of this.bindingPatterns) {
+        await channel.bindQueue(this.queueName, this.exchange, pattern);
+      }
     }
 
     // Start consuming

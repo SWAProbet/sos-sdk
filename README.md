@@ -83,7 +83,8 @@ new SosClient(config: SosClientConfig)
 | `amqpHost` | `string` | required | RabbitMQ connection URL |
 | `apiHost` | `string` | required | SWA Odds Service (SOS) Server REST API URL |
 | `apiBasePath` | `string` | `/sos` | Path the REST API is mounted at behind `apiHost`, where a gateway changes it |
-| `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. |
+| `bindingPatterns` | `string[]` | `['{sport}.live.#', 'system.live.alive.{sport}', 'system.live.alive.-']` | AMQP routing key patterns. Alive is bound per sport, because on a broker shared across sports `system.live.alive.#` lets another sport's heartbeat hide this feed's outage. `system.live.alive.-` is the key older servers publish on. Not applied when `queue` is set. |
+| `queue` | `string` | none | Name of your durable partner queue, `swa.sos.partner.{partnerId}`; the token exchange, `POST {apiBasePath}/auth/token`, returns your `partnerId`. When set, the client consumes that queue by name and declares and binds nothing, because partner credentials can neither declare a named queue nor change its bindings; the server has already bound it to your sports and their heartbeats. Of those heartbeats only `sport`'s counts, so another sport's cannot hide this feed's outage, and recovery covers `sport` alone. Left unset, the client declares an exclusive auto-delete queue for each connection. |
 | `aliveTimeoutMs` | `number` | `30000` | Alive timeout before triggering recovery |
 | `autoRecover` | `boolean` | `true` | Automatically recover on reconnect |
 
@@ -103,16 +104,31 @@ new SosClient(config: SosClientConfig)
 | `oddsChange` | `OddsChangeEvent` | Odds update |
 | `betSettlement` | `BetSettlementEvent` | Market settlement |
 | `betStop` | `BetStopEvent` | Market suspension |
-| `alive` | `AliveEvent` | Producer heartbeat |
+| `betCancel` | `BetCancelEvent` | Settlement reversed |
+| `fixtureChange` | `FixtureChangeEvent` | Fixture added or changed |
+| `snapshotComplete` | `SnapshotCompleteEvent` | End of a recovery replay |
+| `alive` | `AliveEvent` | Heartbeat of this sport's producer |
 | `connected` | `void` | AMQP connected |
 | `disconnected` | `void` | AMQP disconnected |
 | `recoveryStarted` | `{ estimatedMessages }` | Recovery initiated |
 | `recoveryCompleted` | `void` | Recovery finished |
 | `error` | `Error` | Error occurred |
 
+Beyond ids, timestamps, markets and outcomes, the events carry these fields. Each is `undefined` when the message does not have it.
+
+| Event | Field | Description |
+|---|---|---|
+| `oddsChange` | `sportEventStatus.homeScore`, `sportEventStatus.awayScore` | Score of each competitor; the feed sends `0` where the sport keeps none |
+| `oddsChange` | `sportEventStatus.clock.remainingTime` | Time left in the current period, as `m:ss` |
+| `oddsChange` | `sportEventStatus.clock.stopped` | `true` while the clock is not running, `false` while it runs |
+| `betStop` | `marketStatus` | Status applied to the stopped markets: `0`, deactivated |
+| `betCancel` | `markets[].specifiers` | The cancelled line, written as on `oddsChange` and `betSettlement`, so it can be matched to its market |
+
 ## Recovery
 
 With `autoRecover` on, the client asks the server to replay what it missed in two cases: when no alive has arrived for `aliveTimeoutMs`, and when the connection comes back after a drop. The first connect asks for nothing. A replay starts from the last alive heard before the gap, using the feed's own timestamp on that alive, and is requested once for each producer the client has heard from. The request names the queue the connection consumes from as `consumer_queue`. If a recovery fails, its starting point is kept and it is tried again after `aliveTimeoutMs`, so alives arriving in the meantime cannot shrink what is replayed. `recoveryStarted` and `recoveryCompleted` fire once for the whole recovery, and `estimatedMessages` counts every producer.
+
+With `queue` set, `consumer_queue` is your durable queue and the replay is delivered into it. That queue also holds what is published while no client is connected, for up to 72 hours, and delivers it on the next connect, so expect the replay that follows a reconnect to repeat messages already read from the queue. The queue carries every sport on your account, and the client reads only `sport`'s heartbeat from it, neither counting nor emitting another sport's, so a sport that stays alive cannot hide this feed's silence. Your other sports' messages are delivered as they come, but a replay is requested for `sport` alone. Run one client per durable queue: clients that share a queue split its messages between them.
 
 ## Types
 

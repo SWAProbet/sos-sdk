@@ -9,14 +9,16 @@ import { SosClient } from '../../src/client';
 // The slice of amqplib the SDK touches, faked: a connection that emits close, a channel that records.
 function fakeBroker() {
   const channel = {
+    declared: [] as [string, unknown][],
     bindings: [] as [string, string, string][],
+    consumed: [] as string[],
     acked: 0,
     cancelled: [] as string[],
     closed: false,
     handler: null as ((msg: unknown) => void) | null,
-    async assertQueue() { return { queue: 'amq.gen-1' }; },
+    async assertQueue(queue: string, options?: unknown) { channel.declared.push([queue, options]); return { queue: 'amq.gen-1' }; },
     async bindQueue(queue: string, exchange: string, pattern: string) { channel.bindings.push([queue, exchange, pattern]); },
-    async consume(_queue: string, handler: (msg: unknown) => void) { channel.handler = handler; return { consumerTag: 'tag-1' }; },
+    async consume(queue: string, handler: (msg: unknown) => void) { channel.consumed.push(queue); channel.handler = handler; return { consumerTag: 'tag-1' }; },
     ack() { channel.acked += 1; },
     async cancel(tag: string) { channel.cancelled.push(tag); },
     async close() { channel.closed = true; },
@@ -31,6 +33,21 @@ function fakeBroker() {
 
 const deliver = (channel: ReturnType<typeof fakeBroker>['channel'], xml: string, routingKey = 'boxing.live.odds_change.sr:match:1') =>
   channel.handler?.({ content: Buffer.from(xml), fields: { routingKey }, properties: { headers: {} } });
+
+// The durable queue as partner credentials meet it: it is there to consume, and every declare and bind is refused.
+const PARTNER_QUEUE = 'swa.sos.partner.3f9a1c2e';
+function partnerBroker() {
+  const broker = fakeBroker();
+  broker.channel.assertQueue = async (queue: string, options?: unknown) => {
+    broker.channel.declared.push([queue, options]);
+    throw new Error(`ACCESS_REFUSED - configure access to queue '${queue}' refused`);
+  };
+  broker.channel.bindQueue = async (queue: string, exchange: string, pattern: string) => {
+    broker.channel.bindings.push([queue, exchange, pattern]);
+    throw new Error(`ACCESS_REFUSED - write access to queue '${queue}' refused`);
+  };
+  return broker;
+}
 
 describe('AmqpConnection', () => {
   beforeEach(() => {
@@ -94,7 +111,10 @@ describe('AmqpConsumer', () => {
     consumer.on('message', m => messages.push(m));
 
     await consumer.start();
+    assert.deepEqual(channel.declared, [['', { exclusive: true, autoDelete: true }]]);
     assert.deepEqual(channel.bindings, [['amq.gen-1', 'swa.sos', 'boxing.live.#'], ['amq.gen-1', 'swa.sos', 'system.live.alive.#']]);
+    assert.deepEqual(channel.consumed, ['amq.gen-1']);
+    assert.equal(consumer.queue, 'amq.gen-1');
     deliver(channel, '<alive product="1" timestamp="1" subscribed="1"/>', 'system.live.alive.-');
     channel.handler?.(null);
     assert.deepEqual(messages, [{ xml: '<alive product="1" timestamp="1" subscribed="1"/>', routingKey: 'system.live.alive.-', headers: {} }]);
@@ -103,6 +123,33 @@ describe('AmqpConsumer', () => {
     await consumer.stop();
     assert.deepEqual(channel.cancelled, ['tag-1']);
     await consumer.stop();
+  });
+
+  it('consumes a durable partner queue by name, declaring and binding nothing', async () => {
+    const { channel } = partnerBroker();
+    const consumer = new AmqpConsumer({ getChannel: () => channel } as unknown as AmqpConnection, 'swa.sos', ['boxing.live.#', 'system.live.alive.boxing'], PARTNER_QUEUE);
+    const messages: { xml: string; routingKey: string }[] = [];
+    consumer.on('message', m => messages.push(m));
+    assert.equal(consumer.queue, null, 'no queue until started, as with a queue of its own');
+
+    await consumer.start();
+    assert.deepEqual(channel.declared, [], 'partner credentials cannot declare a named queue');
+    assert.deepEqual(channel.bindings, [], 'the server bound the queue; the patterns are not applied');
+    assert.deepEqual(channel.consumed, [PARTNER_QUEUE]);
+    assert.equal(consumer.queue, PARTNER_QUEUE);
+
+    deliver(channel, '<alive product="1" timestamp="1" subscribed="1"/>', 'system.live.alive.boxing');
+    assert.deepEqual(messages, [{ xml: '<alive product="1" timestamp="1" subscribed="1"/>', routingKey: 'system.live.alive.boxing', headers: {} }]);
+    assert.equal(channel.acked, 1);
+
+    await consumer.stop();
+    assert.deepEqual(channel.cancelled, ['tag-1']);
+    assert.equal(consumer.queue, null);
+
+    // A reconnect consumes the same queue again, still by name alone.
+    await consumer.start();
+    assert.deepEqual(channel.consumed, [PARTNER_QUEUE, PARTNER_QUEUE]);
+    assert.deepEqual(channel.declared, []);
   });
 
   it('refuses to start without a channel, and stop tolerates a broker that rejects the cancel', async () => {
@@ -142,13 +189,82 @@ describe('SosClient over the feed', () => {
     deliver(broker.channel, '<bet_cancel product="1" event_id="sr:match:1" timestamp="4"/>');
     deliver(broker.channel, '<fixture_change product="1" event_id="sr:match:1" timestamp="5"/>');
     deliver(broker.channel, '<snapshot_complete product="1" request_id="r" timestamp="6"/>');
-    deliver(broker.channel, '<alive product="1" timestamp="7" subscribed="1"/>');
+    deliver(broker.channel, '<alive product="1" timestamp="7" subscribed="1"/>', 'system.live.alive.boxing');
     deliver(broker.channel, '<fixtures/>');
     deliver(broker.channel, 'not xml at all <');
     assert.deepEqual(seen, ['connected', 'oddsChange', 'betSettlement', 'betStop', 'betCancel', 'fixtureChange', 'snapshotComplete', 'alive']);
 
     broker.connection.emit('close');
     assert.equal(seen.at(-1), 'disconnected');
+    await client.disconnect();
+  });
+
+  it('consumes the configured durable queue as it stands, and takes only this sport\'s heartbeat from it', async () => {
+    const broker = partnerBroker();
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    const client = new SosClient({
+      accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing',
+      queue: PARTNER_QUEUE, bindingPatterns: ['boxing.live.odds_change.#'],
+    });
+    const seen: unknown[] = [];
+    client.on('connected', () => seen.push('connected'));
+    client.on('error', err => seen.push(`error ${err.message}`));
+    client.on('betStop', event => seen.push(event));
+    client.on('betCancel', event => seen.push(event.markets));
+    client.on('alive', event => seen.push(`alive ${event.timestamp}`));
+
+    await client.connect();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(broker.channel.consumed, [PARTNER_QUEUE]);
+    assert.deepEqual(broker.channel.declared, []);
+    assert.deepEqual(broker.channel.bindings, [], 'bindingPatterns is not applied to a queue the server binds');
+
+    deliver(broker.channel, '<bet_stop groups="all" market_status="0" product="1" event_id="match:76234538" timestamp="1794110855027"/>', 'boxing.live.bet_stop.match:76234538');
+    deliver(broker.channel, '<bet_cancel event_id="match:76234538" product="1" timestamp="1794238386257"><market id="1511" specifiers="total=4.5|round=3"/></bet_cancel>', 'boxing.live.bet_cancel.match:76234538');
+    // The server binds the queue to every sport on the account, so it carries each one's heartbeat.
+    deliver(broker.channel, '<alive product="1" timestamp="3" subscribed="1"/>', 'system.live.alive.tennis');
+    deliver(broker.channel, '<alive product="1" timestamp="4" subscribed="1"/>', 'system.live.alive.boxing');
+    deliver(broker.channel, '<alive product="1" timestamp="5" subscribed="1"/>', 'system.live.alive.-');
+    assert.deepEqual(seen, [
+      'connected',
+      { productId: 1, eventId: 'match:76234538', timestamp: 1794110855027, groups: 'all', marketStatus: 0 },
+      [{ id: 1511, specifiers: 'total=4.5|round=3', voidReason: undefined }],
+      'alive 4',
+      'alive 5',
+    ]);
+    assert.equal(broker.channel.acked, 5, "another sport's heartbeat is acknowledged like any other message");
+    await client.disconnect();
+  });
+
+  it('ignores another sport\'s heartbeat however the queue came to carry it', async () => {
+    const broker = fakeBroker();
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    // The 1.x bindings, which take every sport's heartbeat.
+    const client = new SosClient({
+      accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing',
+      bindingPatterns: ['boxing.live.#', 'system.live.alive.#'],
+    });
+    const heard: number[] = [];
+    client.on('alive', event => heard.push(event.timestamp));
+
+    await client.connect();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    deliver(broker.channel, '<alive product="1" timestamp="1" subscribed="1"/>', 'system.live.alive.mma');
+    deliver(broker.channel, '<alive product="1" timestamp="2" subscribed="1"/>', 'system.live.alive.boxing');
+    assert.deepEqual(heard, [2]);
+    await client.disconnect();
+  });
+
+  it('keeps to an exclusive queue of its own when the durable queue name is empty', async () => {
+    const broker = fakeBroker();
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    const client = new SosClient({ accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing', queue: '' });
+
+    await client.connect();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(broker.channel.declared, [['', { exclusive: true, autoDelete: true }]]);
+    assert.deepEqual(broker.channel.bindings.map(b => b[2]), ['boxing.live.#', 'system.live.alive.boxing', 'system.live.alive.-']);
+    assert.deepEqual(broker.channel.consumed, ['amq.gen-1']);
     await client.disconnect();
   });
 
