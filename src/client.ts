@@ -21,13 +21,24 @@ import {
 
 const DEFAULT_SPORT: SosSport = 'mma';
 
+// Alive is published per sport, on system.live.alive.{sport}.
+const ALIVE_KEY_PREFIX = 'system.live.alive.';
+
 // What servers published alive on before it was per sport; bound so an older server still
 // reads as alive. Nothing is published on it once every server carries the per-sport key.
-const LEGACY_ALIVE_KEY = 'system.live.alive.-';
+const LEGACY_ALIVE_KEY = `${ALIVE_KEY_PREFIX}-`;
 
 // One feed carries one sport, so bind that sport and its own heartbeat, never every sport's.
 export function defaultBindingPatterns(sport: SosSport): string[] {
-  return [`${sport}.live.#`, `system.live.alive.${sport}`, LEGACY_ALIVE_KEY];
+  return [`${sport}.live.#`, `${ALIVE_KEY_PREFIX}${sport}`, LEGACY_ALIVE_KEY];
+}
+
+// The sport a heartbeat vouches for, read from its routing key. Undefined where the key names
+// none, as the legacy key does, so that such a heartbeat still counts for every sport.
+function aliveSport(routingKey: string): string | undefined {
+  if (!routingKey.startsWith(ALIVE_KEY_PREFIX)) return undefined;
+  const sport = routingKey.slice(ALIVE_KEY_PREFIX.length);
+  return sport && sport !== '-' ? sport : undefined;
 }
 
 // Every option with its default filled in, except the durable queue, which has none.
@@ -188,8 +199,8 @@ export class SosClient extends EventEmitter {
     });
 
     // AMQP message handling
-    this.consumer.on('message', ({ xml }: { xml: string; routingKey: string }) => {
-      this.handleMessage(xml);
+    this.consumer.on('message', ({ xml, routingKey }: { xml: string; routingKey: string }) => {
+      this.handleMessage(xml, routingKey);
     });
 
     // Recovery events
@@ -206,7 +217,7 @@ export class SosClient extends EventEmitter {
     });
   }
 
-  private handleMessage(xml: string): void {
+  private handleMessage(xml: string, routingKey: string): void {
     try {
       const msgType = detectMessageType(xml);
       const parsed = parseSosXml(xml);
@@ -231,10 +242,17 @@ export class SosClient extends EventEmitter {
         case 'snapshot_complete':
           this.emit('snapshotComplete', parsed as SnapshotCompleteEvent);
           break;
-        case 'alive':
-          this.recoveryManager.onAlive(parsed as AliveEvent);
-          this.emit('alive', parsed as AliveEvent);
+        case 'alive': {
+          // A durable partner queue bound to several sports carries each one's heartbeat, and
+          // another sport's says nothing about this feed: counted, it would hide this feed's
+          // silence from recovery; emitted, it could not be told from this feed's own.
+          const sport = aliveSport(routingKey);
+          if (sport === undefined || sport === this.config.sport) {
+            this.recoveryManager.onAlive(parsed as AliveEvent);
+            this.emit('alive', parsed as AliveEvent);
+          }
           break;
+        }
       }
     } catch (err: any) {
       console.error('[SosSDK] Failed to parse message:', err.message);

@@ -77,6 +77,7 @@ export interface BetStopEvent {
   marketStatus?: number;
 }
 
+/** This sport's producer heartbeat. Another sport's, as a queue bound to several sports carries, is not emitted. */
 export interface AliveEvent {
   productId: number;
   timestamp: number;
@@ -101,8 +102,9 @@ export interface SosClientConfig {
   /**
    * Name of your durable partner queue, `swa.sos.partner.{partnerId}`. When set, the client
    * consumes that queue by name and declares and binds nothing: partner credentials can neither
-   * declare a named queue nor change its bindings. Default: an exclusive auto-delete queue per
-   * connection.
+   * declare a named queue nor change its bindings. The queue carries every sport on the account,
+   * but only `sport`'s heartbeat counts as this feed's, and recovery covers `sport` alone.
+   * Default: an exclusive auto-delete queue per connection.
    */
   queue?: string;
   /** How long (ms) before missing alive triggers recovery. Default: 30000. */

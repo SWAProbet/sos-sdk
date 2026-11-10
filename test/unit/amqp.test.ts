@@ -189,7 +189,7 @@ describe('SosClient over the feed', () => {
     deliver(broker.channel, '<bet_cancel product="1" event_id="sr:match:1" timestamp="4"/>');
     deliver(broker.channel, '<fixture_change product="1" event_id="sr:match:1" timestamp="5"/>');
     deliver(broker.channel, '<snapshot_complete product="1" request_id="r" timestamp="6"/>');
-    deliver(broker.channel, '<alive product="1" timestamp="7" subscribed="1"/>');
+    deliver(broker.channel, '<alive product="1" timestamp="7" subscribed="1"/>', 'system.live.alive.boxing');
     deliver(broker.channel, '<fixtures/>');
     deliver(broker.channel, 'not xml at all <');
     assert.deepEqual(seen, ['connected', 'oddsChange', 'betSettlement', 'betStop', 'betCancel', 'fixtureChange', 'snapshotComplete', 'alive']);
@@ -199,7 +199,7 @@ describe('SosClient over the feed', () => {
     await client.disconnect();
   });
 
-  it('consumes the configured durable queue as it stands, and reads the feed from it as from its own', async () => {
+  it('consumes the configured durable queue as it stands, and takes only this sport\'s heartbeat from it', async () => {
     const broker = partnerBroker();
     mock.method(amqplib, 'connect', async () => broker.connection as never);
     const client = new SosClient({
@@ -211,6 +211,7 @@ describe('SosClient over the feed', () => {
     client.on('error', err => seen.push(`error ${err.message}`));
     client.on('betStop', event => seen.push(event));
     client.on('betCancel', event => seen.push(event.markets));
+    client.on('alive', event => seen.push(`alive ${event.timestamp}`));
 
     await client.connect();
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -220,12 +221,37 @@ describe('SosClient over the feed', () => {
 
     deliver(broker.channel, '<bet_stop groups="all" market_status="0" product="1" event_id="match:76234538" timestamp="1794110855027"/>', 'boxing.live.bet_stop.match:76234538');
     deliver(broker.channel, '<bet_cancel event_id="match:76234538" product="1" timestamp="1794238386257"><market id="1511" specifiers="total=4.5|round=3"/></bet_cancel>', 'boxing.live.bet_cancel.match:76234538');
+    // The server binds the queue to every sport on the account, so it carries each one's heartbeat.
+    deliver(broker.channel, '<alive product="1" timestamp="3" subscribed="1"/>', 'system.live.alive.tennis');
+    deliver(broker.channel, '<alive product="1" timestamp="4" subscribed="1"/>', 'system.live.alive.boxing');
+    deliver(broker.channel, '<alive product="1" timestamp="5" subscribed="1"/>', 'system.live.alive.-');
     assert.deepEqual(seen, [
       'connected',
       { productId: 1, eventId: 'match:76234538', timestamp: 1794110855027, groups: 'all', marketStatus: 0 },
       [{ id: 1511, specifiers: 'total=4.5|round=3', voidReason: undefined }],
+      'alive 4',
+      'alive 5',
     ]);
-    assert.equal(broker.channel.acked, 2);
+    assert.equal(broker.channel.acked, 5, "another sport's heartbeat is acknowledged like any other message");
+    await client.disconnect();
+  });
+
+  it('ignores another sport\'s heartbeat however the queue came to carry it', async () => {
+    const broker = fakeBroker();
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    // The 1.x bindings, which take every sport's heartbeat.
+    const client = new SosClient({
+      accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing',
+      bindingPatterns: ['boxing.live.#', 'system.live.alive.#'],
+    });
+    const heard: number[] = [];
+    client.on('alive', event => heard.push(event.timestamp));
+
+    await client.connect();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    deliver(broker.channel, '<alive product="1" timestamp="1" subscribed="1"/>', 'system.live.alive.mma');
+    deliver(broker.channel, '<alive product="1" timestamp="2" subscribed="1"/>', 'system.live.alive.boxing');
+    assert.deepEqual(heard, [2]);
     await client.disconnect();
   });
 

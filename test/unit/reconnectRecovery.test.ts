@@ -22,10 +22,10 @@ function fakeBroker(queue: string) {
   return { channel, connection };
 }
 
-const alive = (broker: ReturnType<typeof fakeBroker>, product: number, timestamp: number) =>
+const alive = (broker: ReturnType<typeof fakeBroker>, product: number, timestamp: number, routingKey = 'system.live.alive.boxing') =>
   broker.channel.handler?.({
     content: Buffer.from(`<alive product="${product}" timestamp="${timestamp}" subscribed="1"/>`),
-    fields: { routingKey: 'system.live.alive.boxing' },
+    fields: { routingKey },
     properties: { headers: {} },
   });
 
@@ -107,6 +107,58 @@ describe('recovery after a reconnect', () => {
 
   it('asks for nothing when autoRecover is off', async () => {
     const { client, calls } = await connectDropAndReconnect(false);
+    assert.deepEqual(calls, []);
+    await client.disconnect();
+  });
+});
+
+describe('recovery when this sport falls silent on the durable queue', () => {
+  const QUEUE = 'swa.sos.partner.3f9a1c2e';
+
+  beforeEach(() => {
+    mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: LAST_ALIVE });
+    for (const level of ['error', 'log', 'warn'] as const) mock.method(console, level, () => {});
+  });
+  afterEach(() => { mock.timers.reset(); mock.restoreAll(); });
+
+  // Hears boxing once on connect, then for 40 seconds only heartbeats on the given key, one every 10 seconds.
+  async function hearOnly(routingKey: string) {
+    const broker = fakeBroker(QUEUE);
+    mock.method(amqplib, 'connect', async () => broker.connection as never);
+    const calls = stubRecoveryApi();
+    const client = new SosClient({ accessToken: 'key', amqpHost: 'amqp://broker', apiHost: 'https://api.example', sport: 'boxing', queue: QUEUE, aliveTimeoutMs: 30_000 });
+    const heard: number[] = [];
+    client.on('alive', event => heard.push(event.timestamp));
+
+    await client.connect();
+    await flush();
+    alive(broker, 1, LAST_ALIVE);
+    for (let i = 1; i <= 4; i += 1) {
+      mock.timers.tick(10_000);
+      alive(broker, 1, LAST_ALIVE + i * 10_000, routingKey);
+      await flush();
+    }
+    mock.timers.tick(2_000);
+    await flush();
+    return { client, calls, heard };
+  }
+
+  it("notices the silence while another sport's heartbeat keeps arriving, and replays from boxing's last", async () => {
+    const { client, calls, heard } = await hearOnly('system.live.alive.tennis');
+
+    assert.deepEqual(heard, [LAST_ALIVE], "tennis's heartbeat is not emitted as boxing's");
+    const after = encodeURIComponent(new Date(LAST_ALIVE).toISOString());
+    assert.deepEqual(calls, [
+      `POST https://api.example/sos/recovery/1/initiate_request?after=${after}&consumer_queue=${QUEUE}&sport=boxing`,
+      'GET https://api.example/sos/recovery/1/status?request_id=req-1&sport=boxing',
+    ]);
+    await client.disconnect();
+  });
+
+  it("stays quiet while boxing's own heartbeat keeps arriving", async () => {
+    const { client, calls, heard } = await hearOnly('system.live.alive.boxing');
+
+    assert.equal(heard.length, 5);
     assert.deepEqual(calls, []);
     await client.disconnect();
   });
