@@ -142,6 +142,14 @@ describe('AmqpConsumer', () => {
     assert.deepEqual(messages, [{ xml: '<alive product="1" timestamp="1" subscribed="1"/>', routingKey: 'system.live.alive.boxing', headers: {} }]);
     assert.equal(channel.acked, 1);
 
+    channel.handler?.({
+      content: Buffer.from('<odds_change/>'),
+      fields: { routingKey: PARTNER_QUEUE, exchange: '' },
+      properties: { headers: { 'x-sos-routing-key': 'tennis.live.odds_change.match:1' } },
+    });
+    assert.equal(messages.at(-1)?.routingKey, 'tennis.live.odds_change.match:1');
+    assert.equal(channel.acked, 2);
+
     await consumer.stop();
     assert.deepEqual(channel.cancelled, ['tag-1']);
     assert.equal(consumer.queue, null);
