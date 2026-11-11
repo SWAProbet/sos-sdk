@@ -124,7 +124,7 @@ Beyond ids, timestamps, markets and outcomes, the events carry these fields. Eac
 | `betStop` | `marketStatus` | Status applied to the stopped markets: `0`, deactivated |
 | `betCancel` | `markets[].specifiers` | The cancelled line, written as on `oddsChange` and `betSettlement`, so it can be matched to its market |
 
-For partner-specific tennis odds, set `queue` to the partner's issued durable queue.
+For partner-specific odds, set `queue` to the partner's issued durable queue.
 Use one logical consumer per queue. Direct odds and replay retain their original
 topic routing key in the SDK via the `x-sos-routing-key` header.
 
