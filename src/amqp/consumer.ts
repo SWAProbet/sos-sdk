@@ -53,8 +53,11 @@ export class AmqpConsumer extends EventEmitter {
         if (!msg) return;
 
         const xml = msg.content.toString('utf-8');
-        const routingKey = msg.fields.routingKey;
         const headers = msg.properties.headers || {};
+        const originalKey = headers['x-sos-routing-key'];
+        const routingKey = msg.fields.exchange === '' && typeof originalKey === 'string' && originalKey
+          ? originalKey
+          : msg.fields.routingKey;
 
         this.emit('message', { xml, routingKey, headers });
         channel.ack(msg);
